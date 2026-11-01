@@ -49,3 +49,4 @@ next-env.d.ts
 /android-companion/android/captures
 *.apk
 *.aab
+/dist/

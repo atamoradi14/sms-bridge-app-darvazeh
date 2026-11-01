@@ -29,6 +29,17 @@ npm run open
 
 APK output (debug): `android/app/build/outputs/apk/debug/app-debug.apk`
 
+A prebuilt debug APK from CI/agent builds is published as artifact  
+`FieldSense-SMS-debug.apk` (package `com.fieldsense.smsforward`).
+
+Install on a phone (USB / Files):
+
+```bash
+adb install -r FieldSense-SMS-debug.apk
+```
+
+Then open **FieldSense SMS**, grant SMS permission, set email (+ optional API), turn **Forward on**, tap **Save**.
+
 ## API payload example
 
 ```json
