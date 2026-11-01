@@ -65,13 +65,29 @@ If you need Bluetooth LE peripherals, barometer, continuous background sensing, 
 
 Those native shells call platform SDKs and pass readings into JS.
 
+## SMS → Gmail + API (Android)
+
+Browsers **cannot** read incoming SMS. FieldSense includes:
+
+1. **Web settings** (`SMS → Gmail + API`) — set forward-to email, optional API endpoint + auth token, and **Simulate SMS receive** (opens Gmail/mailto + POSTs webhook).
+2. **Built-in test webhook** — `POST /api/sms-webhook`
+3. **Android companion** — `android-companion/` Capacitor app with an `SMS_RECEIVED` receiver that opens the Gmail app and pushes to your API.
+
+```bash
+cd android-companion
+npm install
+npm run sync
+npm run open   # Android Studio → install on phone, grant SMS
+```
+
 ## What this repo demonstrates
 
 - Permission flows for motion, orientation, and geolocation
 - Live readouts + a simple orientation visualization
 - Desktop simulation mode for development without a phone
 - Vibration as a web → device actuator
+- SMS forward settings + Android companion for Gmail/API dispatch
 
 ## Stack
 
-Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui.
+Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui, Capacitor Android companion.

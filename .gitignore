@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# android companion
+/android-companion/node_modules
+/android-companion/android/.gradle
+/android-companion/android/app/build
+/android-companion/android/build
+/android-companion/android/local.properties
+/android-companion/android/captures
+*.apk
+*.aab

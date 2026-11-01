@@ -3,6 +3,7 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { OrientationViz } from "@/components/orientation-viz";
 import { SensorPanel } from "@/components/sensor-panel";
+import { SmsForwardPanel } from "@/components/sms-forward-panel";
 import { ValueRow } from "@/components/value-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -244,6 +245,8 @@ export function SensorLab() {
             </div>
           </SensorPanel>
         </section>
+
+        <SmsForwardPanel />
 
         <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-2xl border border-[color:var(--ink-line)] bg-[color:var(--panel)]/80 p-5">

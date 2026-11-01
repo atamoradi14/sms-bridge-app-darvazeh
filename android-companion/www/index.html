@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>FieldSense SMS</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, sans-serif;
+        --ink: #12332d;
+        --muted: #4d6a63;
+        --teal: #1f9e86;
+        --bg: #eef6f3;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        padding: 1.25rem;
+        line-height: 1.45;
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(18, 51, 45, 0.14);
+        border-radius: 1rem;
+        padding: 1rem;
+      }
+      h1 { margin: 0 0 0.35rem; font-size: 1.6rem; }
+      p { color: var(--muted); margin: 0.35rem 0; }
+      label { display: block; font-size: 0.85rem; margin-top: 0.75rem; }
+      input, textarea {
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 0.25rem;
+        padding: 0.65rem 0.75rem;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(18, 51, 45, 0.18);
+        font: inherit;
+      }
+      button {
+        margin-top: 0.9rem;
+        background: var(--teal);
+        color: #042f2a;
+        border: 0;
+        border-radius: 0.75rem;
+        padding: 0.7rem 1rem;
+        font: inherit;
+        font-weight: 600;
+      }
+      code { font-size: 0.85em; }
+      .row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.75rem; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>FieldSense SMS</h1>
+      <p>
+        Native companion listens for incoming SMS, opens Gmail compose to your forward address, and
+        can POST to your authenticated API.
+      </p>
+      <p>Settings key: <code>fieldsense.sms-forward.v1</code></p>
+
+      <div class="row">
+        <input id="enabled" type="checkbox" />
+        <label for="enabled" style="margin: 0">Forward on</label>
+      </div>
+
+      <label>Forward email
+        <input id="email" type="email" placeholder="you@example.com" />
+      </label>
+      <div class="row">
+        <input id="gmail" type="checkbox" checked />
+        <label for="gmail" style="margin: 0">Open Gmail app</label>
+      </div>
+
+      <div class="row">
+        <input id="apiEnabled" type="checkbox" />
+        <label for="apiEnabled" style="margin: 0">API push on</label>
+      </div>
+      <label>API endpoint
+        <input id="apiEndpoint" type="url" placeholder="https://api.example.com/hooks/sms" />
+      </label>
+      <label>Auth header
+        <input id="apiHeader" value="Authorization" />
+      </label>
+      <label>Auth token
+        <input id="apiToken" type="password" placeholder="Bearer token / API key" />
+      </label>
+
+      <button id="save" type="button">Save settings</button>
+      <p id="status"></p>
+    </div>
+
+    <script>
+      const KEY = "fieldsense.sms-forward.v1";
+      const defaults = {
+        enabled: false,
+        forwardEmail: "",
+        openGmailApp: true,
+        apiEnabled: false,
+        apiEndpoint: "",
+        apiAuthHeader: "Authorization",
+        apiAuthToken: "",
+      };
+
+      function load() {
+        try {
+          return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || "{}") };
+        } catch {
+          return { ...defaults };
+        }
+      }
+
+      function fill(s) {
+        enabled.checked = !!s.enabled;
+        email.value = s.forwardEmail || "";
+        gmail.checked = s.openGmailApp !== false;
+        apiEnabled.checked = !!s.apiEnabled;
+        apiEndpoint.value = s.apiEndpoint || "";
+        apiHeader.value = s.apiAuthHeader || "Authorization";
+        apiToken.value = s.apiAuthToken || "";
+      }
+
+      function readForm() {
+        return {
+          enabled: enabled.checked,
+          forwardEmail: email.value.trim(),
+          openGmailApp: gmail.checked,
+          apiEnabled: apiEnabled.checked,
+          apiEndpoint: apiEndpoint.value.trim(),
+          apiAuthHeader: apiHeader.value.trim() || "Authorization",
+          apiAuthToken: apiToken.value.trim(),
+        };
+      }
+
+      async function persist(settings) {
+        const json = JSON.stringify(settings);
+        localStorage.setItem(KEY, json);
+        if (window.FieldSenseSms && window.FieldSenseSms.saveSettings) {
+          window.FieldSenseSms.saveSettings(json);
+        }
+        try {
+          if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) {
+            await window.Capacitor.Plugins.Preferences.set({ key: KEY, value: json });
+          }
+        } catch (_) {}
+        status.textContent = "Saved for native SMS receiver. Keep SMS permission granted.";
+      }
+
+      fill(load());
+      save.addEventListener("click", () => { persist(readForm()); });
+    </script>
+  </body>
+</html>
