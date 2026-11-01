@@ -2,17 +2,22 @@
 
 Browsers **cannot** read the SMS inbox. This Capacitor Android app listens for `SMS_RECEIVED` and then:
 
-1. Opens the **Gmail** app (compose) to the forward-to email you configured  
-2. Optionally `POST`s `{ notification, message, sms }` to your API with auth header/token
+1. **Auto-sends email via Gmail SMTP** using a Google **App Password** (required — opening the Gmail app from the background is blocked on modern Android and does not send by itself)
+2. Shows a notification (tap opens a Gmail draft as fallback)
+3. Optionally `POST`s `{ notification, message, sms }` to your API with auth header/token
 
 ## Configure
 
-1. Install the APK on your Android phone  
-2. Grant **SMS** permission when prompted  
-3. In the companion UI (or the main FieldSense web app → **SMS → Gmail + API**):  
-   - Set forward email  
-   - Optionally enable API endpoint + auth token  
-   - Turn **Forward on** and tap **Save settings**
+1. Install the APK (`versionName 1.1.0+`) on your Android phone  
+2. Grant **SMS** + **Notifications** when prompted  
+3. Create a Gmail [App Password](https://myaccount.google.com/apppasswords) (2-Step Verification must be on)  
+4. In the companion UI:  
+   - Forward-to email  
+   - Gmail address + App Password  
+   - Optionally API endpoint + auth token  
+   - Turn **Forward on** → **Save settings**  
+5. Send yourself a test SMS — you should get a notification and an email in the forward-to inbox  
+6. Tap **Refresh last SMS** if nothing arrives (shows receiver status)
 
 ## Build
 

@@ -13,37 +13,61 @@ import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
-    private static final int REQ_SMS = 4217;
+    private static final int REQ_PERMS = 4217;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        requestSmsPermissionIfNeeded();
+        requestRuntimePermissions();
 
-        WebView webView = this.bridge != null ? this.bridge.getWebView() : null;
+        // Bridge may not be ready in onCreate on all Capacitor versions — attach after resume too.
+        attachJsBridge();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        attachJsBridge();
+    }
+
+    private void attachJsBridge() {
+        if (this.bridge == null) return;
+        WebView webView = this.bridge.getWebView();
         if (webView != null) {
             webView.addJavascriptInterface(new JsBridge(), "FieldSenseSms");
         }
     }
 
-    private void requestSmsPermissionIfNeeded() {
+    private void requestRuntimePermissions() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
-        boolean receive = ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS)
-                == PackageManager.PERMISSION_GRANTED;
-        boolean read = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
-                == PackageManager.PERMISSION_GRANTED;
-        if (receive && read) return;
-        ActivityCompat.requestPermissions(
-                this,
-                new String[]{Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS},
-                REQ_SMS
-        );
+        java.util.ArrayList<String> needed = new java.util.ArrayList<>();
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS)
+                != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.RECEIVE_SMS);
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
+                != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.READ_SMS);
+        }
+        if (Build.VERSION.SDK_INT >= 33
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.POST_NOTIFICATIONS);
+        }
+        if (!needed.isEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toArray(new String[0]), REQ_PERMS);
+        }
     }
 
     private class JsBridge {
         @JavascriptInterface
         public void saveSettings(String json) {
             SmsForwardBridge.saveSettingsJson(getApplicationContext(), json);
+        }
+
+        @JavascriptInterface
+        public String getLastEvent() {
+            return SmsForwardBridge.getLastEventJson(getApplicationContext());
         }
     }
 }
