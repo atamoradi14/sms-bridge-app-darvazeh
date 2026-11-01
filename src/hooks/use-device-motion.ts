@@ -32,12 +32,13 @@ export function useDeviceMotion({ enabled, simulate }: Options) {
   }
 
   useEffect(() => {
-    if (!enabled) {
-      setData(null);
-      return;
-    }
+    if (!enabled) return;
 
     if (simulate) {
+      queueMicrotask(() => {
+        setPermission("granted");
+        setError(null);
+      });
       const start = performance.now();
       const tick = (now: number) => {
         setData(createSimulatedMotion(now - start));
@@ -51,7 +52,7 @@ export function useDeviceMotion({ enabled, simulate }: Options) {
 
     if (permission !== "granted") return;
     if (!("DeviceMotionEvent" in window)) {
-      setPermission("unsupported");
+      queueMicrotask(() => setPermission("unsupported"));
       return;
     }
 
@@ -86,5 +87,5 @@ export function useDeviceMotion({ enabled, simulate }: Options) {
     return () => window.removeEventListener("devicemotion", onMotion);
   }, [enabled, permission, simulate]);
 
-  return { permission, data, error, enable };
+  return { permission, data: enabled ? data : null, error, enable };
 }

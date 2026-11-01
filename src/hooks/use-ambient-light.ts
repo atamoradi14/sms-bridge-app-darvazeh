@@ -58,12 +58,13 @@ export function useAmbientLight({ enabled, simulate }: Options) {
   }
 
   useEffect(() => {
-    if (!enabled) {
-      setIlluminance(null);
-      return;
-    }
+    if (!enabled) return;
 
     if (simulate) {
+      queueMicrotask(() => {
+        setPermission("granted");
+        setError(null);
+      });
       const start = performance.now();
       const tick = (now: number) => {
         const t = now - start;
@@ -90,10 +91,13 @@ export function useAmbientLight({ enabled, simulate }: Options) {
         sensorRef.current = null;
       };
     } catch (err) {
-      setPermission("unsupported");
-      setError(err instanceof Error ? err.message : "Failed to start ambient light sensor.");
+      const message = err instanceof Error ? err.message : "Failed to start ambient light sensor.";
+      queueMicrotask(() => {
+        setPermission("unsupported");
+        setError(message);
+      });
     }
   }, [enabled, permission, simulate]);
 
-  return { permission, illuminance, error, enable };
+  return { permission, illuminance: enabled ? illuminance : null, error, enable };
 }

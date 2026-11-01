@@ -6,7 +6,8 @@
     "dev": "next dev --hostname 127.0.0.1 --port 43123",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1 --port 43123",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify": "tsx scripts/verify-sensors.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -27,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

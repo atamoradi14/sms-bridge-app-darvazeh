@@ -47,11 +47,14 @@ export function useGeolocation({ enabled, simulate }: Options) {
   useEffect(() => {
     if (!enabled) {
       stop();
-      setData(null);
       return;
     }
 
     if (simulate) {
+      queueMicrotask(() => {
+        setPermission("granted");
+        setError(null);
+      });
       const start = performance.now();
       const tick = (now: number) => {
         setData(createSimulatedGeo(now - start));
@@ -63,7 +66,7 @@ export function useGeolocation({ enabled, simulate }: Options) {
 
     if (permission !== "prompt" && permission !== "granted") return;
     if (!("geolocation" in navigator)) {
-      setPermission("unsupported");
+      queueMicrotask(() => setPermission("unsupported"));
       return;
     }
 
@@ -90,5 +93,5 @@ export function useGeolocation({ enabled, simulate }: Options) {
     return () => stop();
   }, [enabled, permission, simulate]);
 
-  return { permission, data, error, enable };
+  return { permission, data: enabled ? data : null, error, enable };
 }

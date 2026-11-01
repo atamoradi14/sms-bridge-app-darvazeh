@@ -34,12 +34,13 @@ export function useDeviceOrientation({ enabled, simulate }: Options) {
   }
 
   useEffect(() => {
-    if (!enabled) {
-      setData(null);
-      return;
-    }
+    if (!enabled) return;
 
     if (simulate) {
+      queueMicrotask(() => {
+        setPermission("granted");
+        setError(null);
+      });
       const start = performance.now();
       const tick = (now: number) => {
         setData(createSimulatedOrientation(now - start));
@@ -53,7 +54,7 @@ export function useDeviceOrientation({ enabled, simulate }: Options) {
 
     if (permission !== "granted") return;
     if (!("DeviceOrientationEvent" in window)) {
-      setPermission("unsupported");
+      queueMicrotask(() => setPermission("unsupported"));
       return;
     }
 
@@ -70,5 +71,5 @@ export function useDeviceOrientation({ enabled, simulate }: Options) {
     return () => window.removeEventListener("deviceorientation", onOrientation);
   }, [enabled, permission, simulate]);
 
-  return { permission, data, error, enable };
+  return { permission, data: enabled ? data : null, error, enable };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { OrientationViz } from "@/components/orientation-viz";
 import { SensorPanel } from "@/components/sensor-panel";
 import { ValueRow } from "@/components/value-row";
@@ -13,27 +13,29 @@ import { useDeviceOrientation } from "@/hooks/use-device-orientation";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { isSecureContext, needsIOSMotionGesture } from "@/lib/sensors";
 
+function subscribeNoop() {
+  return () => {};
+}
+
 export function SensorLab() {
   const [simulate, setSimulate] = useState(false);
-  const [secure, setSecure] = useState(true);
-  const [iosGate, setIosGate] = useState(false);
+  const secure = useSyncExternalStore(subscribeNoop, isSecureContext, () => true);
+  const iosGate = useSyncExternalStore(subscribeNoop, needsIOSMotionGesture, () => false);
+  const vibrateSupported = useSyncExternalStore(
+    subscribeNoop,
+    () => typeof navigator !== "undefined" && "vibrate" in navigator,
+    () => false,
+  );
   const [motionOn, setMotionOn] = useState(false);
   const [orientationOn, setOrientationOn] = useState(false);
   const [geoOn, setGeoOn] = useState(false);
   const [lightOn, setLightOn] = useState(false);
-  const [vibrateSupported, setVibrateSupported] = useState(false);
   const [lastVibrate, setLastVibrate] = useState<string | null>(null);
 
   const motion = useDeviceMotion({ enabled: motionOn, simulate });
   const orientation = useDeviceOrientation({ enabled: orientationOn, simulate });
   const geo = useGeolocation({ enabled: geoOn, simulate });
   const light = useAmbientLight({ enabled: lightOn, simulate });
-
-  useEffect(() => {
-    setSecure(isSecureContext());
-    setIosGate(needsIOSMotionGesture());
-    setVibrateSupported(typeof navigator !== "undefined" && "vibrate" in navigator);
-  }, []);
 
   const gravity = motion.data?.accelerationIncludingGravity;
   const tiltX = gravity ? Math.max(-1, Math.min(1, gravity.x / 9.81)) : 0;
