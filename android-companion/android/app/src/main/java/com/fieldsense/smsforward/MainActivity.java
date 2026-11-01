@@ -1,9 +1,14 @@
 package com.fieldsense.smsforward;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
@@ -19,9 +24,24 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestRuntimePermissions();
+        maybePromptBatteryOptimizations();
 
         // Bridge may not be ready in onCreate on all Capacitor versions — attach after resume too.
         attachJsBridge();
+    }
+
+    /** Critical on Huawei/Xiaomi/older OEMs that kill SMS receivers in Doze/battery save. */
+    @SuppressLint("BatteryLife")
+    private void maybePromptBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) return;
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        } catch (Exception ignored) {
+        }
     }
 
     @Override

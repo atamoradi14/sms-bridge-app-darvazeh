@@ -19,7 +19,11 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.Properties;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -56,7 +60,7 @@ public final class SmsForwardBridge {
             return;
         }
 
-        String receivedAt = java.time.Instant.now().toString();
+        String receivedAt = nowIsoUtc();
         String preview = body == null ? "" : body;
         if (preview.length() > 80) preview = preview.substring(0, 80) + "…";
 
@@ -232,12 +236,11 @@ public final class SmsForwardBridge {
                 .setAutoCancel(true);
 
         if (contentIntent != null) {
-            PendingIntent pi = PendingIntent.getActivity(
-                    context,
-                    0,
-                    contentIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-            );
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= 31) {
+                flags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            PendingIntent pi = PendingIntent.getActivity(context, 0, contentIntent, flags);
             builder.setContentIntent(pi);
         }
 
@@ -317,5 +320,12 @@ public final class SmsForwardBridge {
 
     private static String safe(String value) {
         return value == null || value.isEmpty() ? "unknown" : value;
+    }
+
+    /** API 24/25 safe — avoid java.time (API 26+) without desugaring. */
+    private static String nowIsoUtc() {
+        SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+        fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return fmt.format(new Date());
     }
 }

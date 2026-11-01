@@ -34,6 +34,24 @@ npm run open
 
 APK output (debug): `android/app/build/outputs/apk/debug/app-debug.apk`
 
+## Compatibility
+
+| | Support |
+| --- | --- |
+| Minimum Android | **7.0 (API 24)** — required by Capacitor 8 |
+| Typical old Huawei (EMUI 8/9/10, Android 8–10) | Supported |
+| Android 5–6 Huawei | Not supported by this Capacitor build |
+| Huawei without Google Play / Gmail app | OK — email uses **SMTP**, not the Gmail app |
+| Google Play Services | Not required |
+
+### Huawei / EMUI checklist (SMS often “silently fails” otherwise)
+
+1. Install APK → allow **SMS** (+ notifications if shown)
+2. Allow **Ignore battery optimizations** when prompted
+3. **Phone Manager / Optimizer → App launch** → FieldSense SMS → manage manually → enable Auto-launch + Secondary launch + Run in background
+4. Keep the app installed; don’t Force stop it
+5. Use Gmail **App Password** SMTP (works without Huawei having Gmail installed)
+
 A prebuilt debug APK from CI/agent builds is published as artifact  
 `FieldSense-SMS-debug.apk` (package `com.fieldsense.smsforward`).
 
