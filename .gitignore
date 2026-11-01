@@ -47,6 +47,9 @@ next-env.d.ts
 /android-companion/android/build
 /android-companion/android/local.properties
 /android-companion/android/captures
-*.apk
 *.aab
 /dist/
+# Keep the published debug APK downloadable from the repo / public URL
+!/public/FieldSense-SMS-debug.apk
+/android-companion/*.apk
+/android-companion/android/app/build/
