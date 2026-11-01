@@ -1,0 +1,160 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-display);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --ink: #12332d;
+  --ink-muted: #4d6a63;
+  --ink-line: rgba(18, 51, 45, 0.14);
+  --panel: rgba(255, 255, 255, 0.72);
+  --wash: rgba(18, 51, 45, 0.05);
+  --teal: #1f9e86;
+  --teal-deep: #0f7668;
+  --teal-ink: #042f2a;
+
+  --background: #eef6f3;
+  --foreground: #12332d;
+  --card: #ffffff;
+  --card-foreground: #12332d;
+  --popover: #ffffff;
+  --popover-foreground: #12332d;
+  --primary: #0f7668;
+  --primary-foreground: #ecfdf8;
+  --secondary: #dceae5;
+  --secondary-foreground: #12332d;
+  --muted: #e4efeb;
+  --muted-foreground: #4d6a63;
+  --accent: #d7ebe4;
+  --accent-foreground: #12332d;
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: rgba(18, 51, 45, 0.14);
+  --input: rgba(18, 51, 45, 0.16);
+  --ring: #1f9e86;
+  --chart-1: #1f9e86;
+  --chart-2: #0e7490;
+  --chart-3: #4d6a63;
+  --chart-4: #134e4a;
+  --chart-5: #99f6e4;
+  --radius: 0.75rem;
+  --sidebar: #f4fbf8;
+  --sidebar-foreground: #12332d;
+  --sidebar-primary: #0f7668;
+  --sidebar-primary-foreground: #ecfdf8;
+  --sidebar-accent: #dceae5;
+  --sidebar-accent-foreground: #12332d;
+  --sidebar-border: rgba(18, 51, 45, 0.14);
+  --sidebar-ring: #1f9e86;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(18px, -24px, 0);
+  }
+}
+
+@keyframes drift-slow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-22px, 16px, 0) scale(1.05);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-drift {
+  animation: drift 10s ease-in-out infinite;
+}
+
+.animate-drift-slow {
+  animation: drift-slow 14s ease-in-out infinite;
+}
+
+.sensor-panel {
+  animation: rise-in 0.55s ease-out both;
+}
+
+.sensor-panel:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.sensor-panel:nth-child(3) {
+  animation-delay: 0.12s;
+}
+
+.sensor-panel:nth-child(4) {
+  animation-delay: 0.18s;
+}
