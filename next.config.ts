@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
@@ -11,6 +10,32 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Permissions-Policy",
+            value: [
+              "accelerometer=(self)",
+              "gyroscope=(self)",
+              "magnetometer=(self)",
+              "geolocation=(self)",
+              "ambient-light-sensor=(self)",
+              "camera=(self)",
+              "microphone=(self)",
+            ].join(", "),
+          },
+          {
+            key: "Feature-Policy",
+            value:
+              "accelerometer 'self'; gyroscope 'self'; magnetometer 'self'; geolocation 'self'",
+          },
+        ],
+      },
+    ];
   },
 };
 

@@ -62,11 +62,12 @@ export function SensorLab() {
   }
 
   async function enableAll() {
+    // Request permissions inside the user gesture first, then arm listeners.
+    await Promise.all([motion.enable(), orientation.enable(), geo.enable(), light.enable()]);
     setMotionOn(true);
     setOrientationOn(true);
     setGeoOn(true);
     setLightOn(true);
-    await Promise.all([motion.enable(), orientation.enable(), geo.enable(), light.enable()]);
   }
 
   return (
@@ -151,14 +152,31 @@ export function SensorLab() {
             onEnable={motion.enable}
             error={motion.error}
           >
-            <ValueRow label="Accel X" value={motion.data?.acceleration?.x} unit="m/s²" />
-            <ValueRow label="Accel Y" value={motion.data?.acceleration?.y} unit="m/s²" />
-            <ValueRow label="Accel Z" value={motion.data?.acceleration?.z} unit="m/s²" />
+            <p className="mb-2 font-mono text-[11px] text-[color:var(--ink-muted)]">
+              events: {motion.eventCount}
+              {motion.eventCount === 0 && motion.permission === "granted"
+                ? " — tilt the phone"
+                : ""}
+            </p>
+            {/* Android often leaves linear acceleration null; gravity vector is the live signal. */}
+            <ValueRow
+              label="Gravity X"
+              value={motion.data?.accelerationIncludingGravity?.x}
+              unit="m/s²"
+            />
+            <ValueRow
+              label="Gravity Y"
+              value={motion.data?.accelerationIncludingGravity?.y}
+              unit="m/s²"
+            />
             <ValueRow
               label="Gravity Z"
               value={motion.data?.accelerationIncludingGravity?.z}
               unit="m/s²"
             />
+            <ValueRow label="Linear X" value={motion.data?.acceleration?.x} unit="m/s²" />
+            <ValueRow label="Linear Y" value={motion.data?.acceleration?.y} unit="m/s²" />
+            <ValueRow label="Linear Z" value={motion.data?.acceleration?.z} unit="m/s²" />
             <ValueRow label="Rot α" value={motion.data?.rotationRate?.alpha} unit="°/s" />
             <ValueRow label="Interval" value={motion.data?.interval} unit="ms" digits={0} />
           </SensorPanel>
@@ -172,6 +190,12 @@ export function SensorLab() {
             onEnable={orientation.enable}
             error={orientation.error}
           >
+            <p className="mb-2 font-mono text-[11px] text-[color:var(--ink-muted)]">
+              events: {orientation.eventCount}
+              {orientation.eventCount === 0 && orientation.permission === "granted"
+                ? " — rotate the phone"
+                : ""}
+            </p>
             <div className="mb-4">
               <OrientationViz data={orientation.data} />
             </div>

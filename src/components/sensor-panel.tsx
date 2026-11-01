@@ -59,7 +59,10 @@ export function SensorPanel({
         </div>
         <Switch
           checked={enabled}
-          onCheckedChange={onEnabledChange}
+          onCheckedChange={(next) => {
+            onEnabledChange(next);
+            if (next) void onEnable();
+          }}
           aria-label={`Toggle ${title}`}
         />
       </div>

@@ -17,6 +17,7 @@ export function useDeviceOrientation({ enabled, simulate }: Options) {
   const [permission, setPermission] = useState<PermissionState>("unknown");
   const [data, setData] = useState<OrientationData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [eventCount, setEventCount] = useState(0);
   const rafRef = useRef<number | null>(null);
 
   async function enable() {
@@ -44,6 +45,7 @@ export function useDeviceOrientation({ enabled, simulate }: Options) {
       const start = performance.now();
       const tick = (now: number) => {
         setData(createSimulatedOrientation(now - start));
+        setEventCount((n) => n + 1);
         rafRef.current = requestAnimationFrame(tick);
       };
       rafRef.current = requestAnimationFrame(tick);
@@ -59,6 +61,7 @@ export function useDeviceOrientation({ enabled, simulate }: Options) {
     }
 
     const onOrientation = (event: DeviceOrientationEvent) => {
+      setEventCount((n) => n + 1);
       setData({
         alpha: event.alpha,
         beta: event.beta,
@@ -71,5 +74,11 @@ export function useDeviceOrientation({ enabled, simulate }: Options) {
     return () => window.removeEventListener("deviceorientation", onOrientation);
   }, [enabled, permission, simulate]);
 
-  return { permission, data: enabled ? data : null, error, enable };
+  return {
+    permission,
+    data: enabled ? data : null,
+    error,
+    enable,
+    eventCount: enabled ? eventCount : 0,
+  };
 }

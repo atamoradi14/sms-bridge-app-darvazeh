@@ -17,6 +17,7 @@ export function useDeviceMotion({ enabled, simulate }: Options) {
   const [permission, setPermission] = useState<PermissionState>("unknown");
   const [data, setData] = useState<MotionData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [eventCount, setEventCount] = useState(0);
   const rafRef = useRef<number | null>(null);
 
   async function enable() {
@@ -42,6 +43,7 @@ export function useDeviceMotion({ enabled, simulate }: Options) {
       const start = performance.now();
       const tick = (now: number) => {
         setData(createSimulatedMotion(now - start));
+        setEventCount((n) => n + 1);
         rafRef.current = requestAnimationFrame(tick);
       };
       rafRef.current = requestAnimationFrame(tick);
@@ -57,6 +59,7 @@ export function useDeviceMotion({ enabled, simulate }: Options) {
     }
 
     const onMotion = (event: DeviceMotionEvent) => {
+      setEventCount((n) => n + 1);
       setData({
         acceleration: event.acceleration
           ? {
@@ -87,5 +90,11 @@ export function useDeviceMotion({ enabled, simulate }: Options) {
     return () => window.removeEventListener("devicemotion", onMotion);
   }, [enabled, permission, simulate]);
 
-  return { permission, data: enabled ? data : null, error, enable };
+  return {
+    permission,
+    data: enabled ? data : null,
+    error,
+    enable,
+    eventCount: enabled ? eventCount : 0,
+  };
 }

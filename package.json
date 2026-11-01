@@ -6,6 +6,7 @@
     "dev": "next dev --hostname 127.0.0.1 --port 43123",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1 --port 43123",
+    "serve:public": "npm run build && npm run start",
     "lint": "eslint",
     "verify": "tsx scripts/verify-sensors.mjs"
   },
