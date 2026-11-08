@@ -1,93 +1,105 @@
-# FieldSense
+# FieldSense Relay (v2)
 
-A Next.js demo that shows how a **webapp can read and control phone sensors** on Android and iOS through browser APIs — motion, orientation, geolocation, ambient light, and vibration.
+Iran SIM home-phone SMS relay: leave your phone + SIM in Iran, use the web app abroad to **read inbound SMS** and (when admin grants relay) **send SMS out through that phone**.
 
-Open it on a phone over HTTPS (or use **Desktop simulate** on a laptop).
+Tag **`v1.0`** is the earlier Next.js sensors + SMTP Android forwarder. Current `main` is the v2 stack below.
 
-## Run locally
+## Architecture
+
+| Piece | Role |
+| --- | --- |
+| **ASP.NET 8 API** (`server/FieldSense.Api`) | Auth, inbox, admin grants, device agent endpoints, ACS email |
+| **Vite React web** (`web/`) | Single UI for admin + users (email OTP login) |
+| **Android agent** (`android-companion/`) | Phone in Iran: upload inbound SMS, send queued outbound SMS |
+
+```
+Foreign user (web)
+    ↕ HTTPS JWT
+FieldSense API  ←→  Azure ACS (OTP + optional SMS→email)
+    ↕ X-Device-Token
+Android phone (Iran SIM)
+```
+
+## Quick start
+
+### 1. API
 
 ```bash
+cd server/FieldSense.Api
+# optional: export FieldSense__AdminEmail=... FieldSense__AdminPassword=... FieldSense__AcsConnectionString=...
+dotnet run --urls http://0.0.0.0:5088
+```
+
+Swagger: http://127.0.0.1:5088/swagger  
+Health: http://127.0.0.1:5088/health
+
+Default admin (change in production):
+
+- Email: `admin@ndorbit.co.nz` (`FieldSense__AdminEmail`)
+- Password: `ChangeMeAdmin!` (`FieldSense__AdminPassword`) — required **in addition** to OTP when that email signs in
+- ACS mock on by default (`FieldSense__AcsMock=true`) — OTP printed in API logs / returned as `debugCode`
+
+### 2. Web
+
+```bash
+cd web
 npm install
 npm run dev
 ```
 
 App: [http://127.0.0.1:43123](http://127.0.0.1:43123)
 
-## How webapps reach Android / iOS sensors
+Set `VITE_API_BASE` if the API is not on `http://127.0.0.1:5088`.
 
-Browsers do **not** expose every native sensor. They expose a curated, permissioned set of Web APIs. That is usually enough for tilt games, compass UIs, fitness-style motion cues, maps, and light-aware themes.
+### 3. Android phone (Iran)
 
-### 1. Secure context first
+1. Web → **Device** → generate device token  
+2. Install companion APK (`android-companion`, minSdk 24)  
+3. Paste API base URL + token → Relay on  
+4. Keep SMS + battery exemptions granted  
 
-Most sensor APIs only work on **HTTPS** or **localhost**. Serving over plain `http://192.168.x.x` on a LAN phone will fail.
+See `android-companion/README.md`.
 
-### 2. Core browser APIs
+## Auth model
 
-| Capability | API | Notes |
-| --- | --- | --- |
-| Accelerometer / gyro rates | `DeviceMotionEvent` | Wide support. iOS needs a user-gesture permission prompt. |
-| Device attitude | `DeviceOrientationEvent` | Alpha / beta / gamma. Same iOS permission gate. |
-| GPS | `navigator.geolocation` | Explicit permission on every platform. |
-| Ambient light | `AmbientLightSensor` | Mostly Chromium. |
-| Haptics (output) | `navigator.vibrate()` | Android-friendly; limited/no support on iOS Safari. |
-| Camera / mic | `navigator.mediaDevices.getUserMedia` | Sensors in a broad sense; not wired in this demo. |
+- **Everyone**: email login with OTP via Azure Communication Services Email  
+- **Admin**: email listed in `.env` / `FieldSense__AdminEmail` must also enter `FieldSense__AdminPassword` after OTP  
+- **Users**: OTP only; **Send via Iran phone** appears only after admin grants relay  
 
-Example — request iOS motion permission, then listen:
+## User features
 
-```ts
-async function startMotion(onData: (e: DeviceMotionEvent) => void) {
-  const request = (
-    DeviceMotionEvent as unknown as {
-      requestPermission?: () => Promise<"granted" | "denied">;
-    }
-  ).requestPermission;
+- Inbox of inbound + outbound SMS for their paired device  
+- Optional **forward inbound SMS to email** (ACS)  
+- Pair Android device token  
+- Send SMS (queued → phone → `SmsManager`) when `CanRelaySms` is true  
 
-  if (typeof request === "function") {
-    const state = await request();
-    if (state !== "granted") throw new Error("Motion denied");
-  }
+## Admin APIs
 
-  window.addEventListener("devicemotion", onData);
-}
-```
+- `GET /api/admin/users`  
+- `PUT /api/admin/users/{id}/relay` `{ "canRelaySms": true }`  
+- `GET /api/admin/stats`  
 
-### 3. Platform differences
+## Device agent APIs
 
-- **Android Chrome**: motion/orientation often stream after enabling listeners; geolocation still prompts; vibration works; Ambient Light may work in Chromium.
-- **iOS Safari**: `DeviceOrientationEvent.requestPermission()` / `DeviceMotionEvent.requestPermission()` must run from a tap; vibration is generally unavailable; Ambient Light is unsupported.
+Header: `X-Device-Token: <token>`
 
-### 4. When you need deeper hardware
+- `POST /api/device/heartbeat`  
+- `POST /api/device/inbound-sms` `{ "from", "body", "receivedAt?" }`  
+- `GET /api/device/outbound/pending`  
+- `POST /api/device/outbound/{jobId}/result` `{ "status": "sent"|"failed", "error?" }`  
 
-If you need Bluetooth LE peripherals, barometer, continuous background sensing, or Apple Health / Google Fit bridges, wrap the web UI with:
-
-- **Capacitor** or **Cordova** (web codebase + native plugins), or
-- **React Native / Flutter** with a WebView bridge
-
-Those native shells call platform SDKs and pass readings into JS.
-
-## SMS → Gmail + API (Android)
-
-Browsers **cannot** read incoming SMS. FieldSense includes:
-
-1. **Web settings** (`SMS → Gmail + API`) — set forward-to email, optional API endpoint + auth token, and **Simulate SMS receive** (opens Gmail/mailto + POSTs webhook).
-2. **Built-in test webhook** — `POST /api/sms-webhook`
-3. **Android companion** — `android-companion/` Capacitor app with an `SMS_RECEIVED` receiver that opens the Gmail app and pushes to your API.
+## ACS configuration
 
 ```bash
-cd android-companion
-npm install
-npm run sync
-npm run open   # Android Studio → install on phone, grant SMS
+export FieldSense__AcsMock=false
+export FieldSense__AcsConnectionString='endpoint=https://....;accesskey=...'
+export FieldSense__AcsSenderAddress='DoNotReply@your-verified-domain'
+export FieldSense__AdminEmail='you@example.com'
+export FieldSense__AdminPassword='strong-secret'
+export FieldSense__JwtKey='long-random-secret-at-least-32-chars'
+export FieldSense__CorsOrigin='http://127.0.0.1:43123,https://your-web-host'
 ```
 
-## What this repo demonstrates
+## Legacy v1.0
 
-- Permission flows for motion, orientation, and geolocation
-- Live readouts + a simple orientation visualization
-- Desktop simulation mode for development without a phone
-- Vibration as a web → device actuator
-- SMS forward settings + Android companion for Gmail/API dispatch
-
-## Stack
-
-Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui, Capacitor Android companion.
+Checkout tag `v1.0` for the original Next.js sensor demo + Gmail SMTP Android forwarder.

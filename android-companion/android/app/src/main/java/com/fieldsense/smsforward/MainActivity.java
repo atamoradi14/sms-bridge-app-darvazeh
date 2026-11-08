@@ -17,6 +17,8 @@ import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.BridgeActivity;
 
+import org.json.JSONObject;
+
 public class MainActivity extends BridgeActivity {
     private static final int REQ_PERMS = 4217;
 
@@ -25,9 +27,8 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         requestRuntimePermissions();
         maybePromptBatteryOptimizations();
-
-        // Bridge may not be ready in onCreate on all Capacitor versions — attach after resume too.
         attachJsBridge();
+        maybeStartAgent();
     }
 
     /** Critical on Huawei/Xiaomi/older OEMs that kill SMS receivers in Doze/battery save. */
@@ -48,6 +49,17 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         attachJsBridge();
+        maybeStartAgent();
+    }
+
+    private void maybeStartAgent() {
+        try {
+            JSONObject settings = SmsForwardBridge.readSettings(getApplicationContext());
+            if (settings != null && settings.optBoolean("enabled", false)) {
+                DeviceAgentService.start(getApplicationContext());
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private void attachJsBridge() {
@@ -69,6 +81,10 @@ public class MainActivity extends BridgeActivity {
                 != PackageManager.PERMISSION_GRANTED) {
             needed.add(Manifest.permission.READ_SMS);
         }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+                != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.SEND_SMS);
+        }
         if (Build.VERSION.SDK_INT >= 33
                 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -88,6 +104,11 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public String getLastEvent() {
             return SmsForwardBridge.getLastEventJson(getApplicationContext());
+        }
+
+        @JavascriptInterface
+        public String testHeartbeat() {
+            return SmsForwardBridge.testHeartbeat(getApplicationContext());
         }
     }
 }

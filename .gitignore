@@ -32,6 +32,16 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+!**/.env.example
+
+# local API database
+**/fieldsense.db
+**/fieldsense.db-*
+/web/dist/
+/web/node_modules/
+/server/**/bin/
+/server/**/obj/
 
 # vercel
 .vercel

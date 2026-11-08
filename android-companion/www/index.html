@@ -3,112 +3,97 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>FieldSense SMS</title>
+    <title>FieldSense Relay</title>
     <style>
       :root {
         color-scheme: light;
-        font-family: system-ui, sans-serif;
+        font-family: system-ui, -apple-system, sans-serif;
         --ink: #12332d;
         --muted: #4d6a63;
         --teal: #1f9e86;
+        --teal-ink: #042f2a;
         --bg: #eef6f3;
+        --line: rgba(18, 51, 45, 0.14);
+        --danger: #b42318;
       }
-      body { margin: 0; background: var(--bg); color: var(--ink); padding: 1.25rem; line-height: 1.45; }
+      body { margin: 0; background: var(--bg); color: var(--ink); padding: 1rem; line-height: 1.45; }
       .card {
-        background: rgba(255, 255, 255, 0.85);
-        border: 1px solid rgba(18, 51, 45, 0.14);
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid var(--line);
         border-radius: 1rem;
         padding: 1rem;
+        max-width: 520px;
+        margin: 0 auto;
       }
-      h1 { margin: 0 0 0.35rem; font-size: 1.6rem; }
-      p { color: var(--muted); margin: 0.35rem 0; }
-      label { display: block; font-size: 0.85rem; margin-top: 0.75rem; }
-      input {
-        width: 100%; box-sizing: border-box; margin-top: 0.25rem;
-        padding: 0.65rem 0.75rem; border-radius: 0.75rem;
-        border: 1px solid rgba(18, 51, 45, 0.18); font: inherit;
+      h1 { margin: 0 0 0.25rem; font-size: 1.7rem; letter-spacing: -0.02em; }
+      p { color: var(--muted); margin: 0.4rem 0; }
+      label { display: block; font-size: 0.9rem; margin-top: 0.85rem; color: var(--muted); }
+      input[type="text"], input[type="url"], input[type="password"] {
+        width: 100%; box-sizing: border-box; margin-top: 0.3rem;
+        padding: 0.85rem 0.9rem; border-radius: 0.85rem; min-height: 48px;
+        border: 1px solid rgba(18, 51, 45, 0.18); font: inherit; font-size: 1rem;
       }
       button {
-        margin-top: 0.9rem; margin-right: 0.5rem; background: var(--teal); color: #042f2a;
-        border: 0; border-radius: 0.75rem; padding: 0.7rem 1rem; font: inherit; font-weight: 600;
+        margin-top: 1rem; margin-right: 0.5rem; background: var(--teal); color: var(--teal-ink);
+        border: 0; border-radius: 0.85rem; padding: 0.9rem 1.1rem; font: inherit; font-weight: 700;
+        min-height: 52px; font-size: 1rem;
       }
       button.secondary { background: #dceae5; }
-      code { font-size: 0.85em; }
-      .row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.75rem; }
-      .hint { font-size: 0.8rem; color: var(--muted); }
-      #lastEvent { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.75rem; }
+      .row { display: flex; gap: 0.65rem; align-items: center; margin-top: 0.9rem; min-height: 48px; }
+      .hint { font-size: 0.85rem; color: var(--muted); }
+      .status { margin-top: 0.85rem; font-weight: 600; }
+      .error { color: var(--danger); }
+      #lastEvent {
+        white-space: pre-wrap; word-break: break-word;
+        font-family: ui-monospace, monospace; font-size: 0.78rem;
+        background: #f4fbf8; border-radius: 0.75rem; padding: 0.75rem; border: 1px solid var(--line);
+      }
+      .pill {
+        display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px;
+        background: rgba(31, 158, 134, 0.16); font-size: 0.75rem; font-weight: 700;
+      }
     </style>
   </head>
   <body>
     <div class="card">
-      <h1>FieldSense SMS</h1>
+      <h1>FieldSense Relay</h1>
       <p>
-        On SMS receive, the app <strong>auto-sends email via Gmail SMTP</strong> (App Password),
-        shows a notification, and can POST your API webhook. Opening the Gmail app alone cannot
-        send mail from the background on modern Android.
+        Leave this phone in Iran with your SIM. It uploads inbound SMS to your FieldSense server
+        and sends queued outbound SMS when you message from the web abroad.
       </p>
+      <p><span class="pill">Android 7+</span> Large controls · works on older Huawei / Xiaomi</p>
 
       <div class="row">
         <input id="enabled" type="checkbox" />
-        <label for="enabled" style="margin: 0">Forward on</label>
+        <label for="enabled" style="margin: 0; color: var(--ink); font-weight: 600;">Relay on</label>
       </div>
 
-      <label>Forward to email (inbox that receives SMS mail)
-        <input id="email" type="email" placeholder="you@example.com" />
+      <label>Server API base URL
+        <input id="apiBase" type="url" placeholder="https://api.example.com" autocomplete="off" />
+      </label>
+      <label>Device token (from web → Device)
+        <input id="deviceToken" type="password" placeholder="Paste device token" autocomplete="off" />
       </label>
 
-      <label>Gmail address (SMTP login)
-        <input id="smtpUser" type="email" placeholder="your.gmail@gmail.com" />
-      </label>
-      <label>Gmail App Password
-        <input id="smtpPass" type="password" placeholder="16-character app password" autocomplete="off" />
-      </label>
-      <p class="hint">
-        Google Account → Security → 2-Step Verification → App passwords → Mail.
-        Use an <em>App Password</em>, not your normal Gmail password.
-      </p>
+      <button id="save" type="button">Save &amp; start relay</button>
+      <button id="test" type="button" class="secondary">Test heartbeat</button>
+      <button id="refresh" type="button" class="secondary">Refresh status</button>
 
-      <div class="row">
-        <input id="smtpEnabled" type="checkbox" checked />
-        <label for="smtpEnabled" style="margin: 0">Auto-send email (SMTP)</label>
-      </div>
-
-      <div class="row">
-        <input id="apiEnabled" type="checkbox" />
-        <label for="apiEnabled" style="margin: 0">API push on</label>
-      </div>
-      <label>API endpoint
-        <input id="apiEndpoint" type="url" placeholder="https://api.example.com/hooks/sms" />
-      </label>
-      <label>Auth header
-        <input id="apiHeader" value="Authorization" />
-      </label>
-      <label>Auth token
-        <input id="apiToken" type="password" placeholder="Bearer token / API key" autocomplete="off" />
-      </label>
-
-      <button id="save" type="button">Save settings</button>
-      <button id="refresh" type="button" class="secondary">Refresh last SMS</button>
-      <p id="status"></p>
+      <p id="status" class="status"></p>
       <p class="hint">Last event</p>
       <pre id="lastEvent">{}</pre>
+      <p class="hint">
+        Allow SMS, Notifications, and “Ignore battery optimizations”. On Huawei: Settings →
+        Battery → App launch → FieldSense → manage manually (Autostart + run in background).
+      </p>
     </div>
 
     <script>
-      const KEY = "fieldsense.sms-forward.v1";
+      const KEY = "fieldsense.device-agent.v2";
       const defaults = {
         enabled: false,
-        forwardEmail: "",
-        smtpUser: "",
-        smtpAppPassword: "",
-        smtpEnabled: true,
-        smtpHost: "smtp.gmail.com",
-        smtpPort: 587,
-        openGmailApp: false,
-        apiEnabled: false,
-        apiEndpoint: "",
-        apiAuthHeader: "Authorization",
-        apiAuthToken: "",
+        apiBase: "",
+        deviceToken: "",
       };
 
       function load() {
@@ -118,30 +103,15 @@
 
       function fill(s) {
         enabled.checked = !!s.enabled;
-        email.value = s.forwardEmail || "";
-        smtpUser.value = s.smtpUser || s.forwardEmail || "";
-        smtpPass.value = s.smtpAppPassword || "";
-        smtpEnabled.checked = s.smtpEnabled !== false;
-        apiEnabled.checked = !!s.apiEnabled;
-        apiEndpoint.value = s.apiEndpoint || "";
-        apiHeader.value = s.apiAuthHeader || "Authorization";
-        apiToken.value = s.apiAuthToken || "";
+        apiBase.value = s.apiBase || "";
+        deviceToken.value = s.deviceToken || "";
       }
 
       function readForm() {
         return {
           enabled: enabled.checked,
-          forwardEmail: email.value.trim(),
-          smtpUser: smtpUser.value.trim() || email.value.trim(),
-          smtpAppPassword: smtpPass.value.trim(),
-          smtpEnabled: smtpEnabled.checked,
-          smtpHost: "smtp.gmail.com",
-          smtpPort: 587,
-          openGmailApp: false,
-          apiEnabled: apiEnabled.checked,
-          apiEndpoint: apiEndpoint.value.trim(),
-          apiAuthHeader: apiHeader.value.trim() || "Authorization",
-          apiAuthToken: apiToken.value.trim(),
+          apiBase: (apiBase.value || "").trim().replace(/\/$/, ""),
+          deviceToken: (deviceToken.value || "").trim(),
         };
       }
 
@@ -151,7 +121,10 @@
         if (window.FieldSenseSms && window.FieldSenseSms.saveSettings) {
           window.FieldSenseSms.saveSettings(json);
         }
-        status.textContent = "Saved. Keep SMS + Notifications allowed. Send yourself a test SMS.";
+        status.textContent = settings.enabled
+          ? "Relay saved. Keep the app installed; inbound SMS and outbound queue will sync."
+          : "Saved. Relay is off.";
+        status.className = "status";
         refreshLast();
       }
 
@@ -165,8 +138,29 @@
         }
       }
 
+      async function testHeartbeat() {
+        const s = readForm();
+        persist(s);
+        status.textContent = "Testing…";
+        try {
+          if (window.FieldSenseSms && window.FieldSenseSms.testHeartbeat) {
+            const res = window.FieldSenseSms.testHeartbeat();
+            status.textContent = res || "OK";
+            status.className = "status";
+          } else {
+            status.textContent = "Native bridge missing — open inside the Android APK.";
+            status.className = "status error";
+          }
+        } catch (e) {
+          status.textContent = String(e);
+          status.className = "status error";
+        }
+        refreshLast();
+      }
+
       fill(load());
       save.addEventListener("click", () => persist(readForm()));
+      test.addEventListener("click", testHeartbeat);
       refresh.addEventListener("click", refreshLast);
       setInterval(refreshLast, 4000);
       refreshLast();

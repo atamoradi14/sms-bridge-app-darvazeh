@@ -6,15 +6,19 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.net.Uri;
 import android.os.Build;
+import android.telephony.SmsManager;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -22,30 +26,24 @@ import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
-import java.util.Properties;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import javax.mail.Authenticator;
-import javax.mail.Message;
-import javax.mail.PasswordAuthentication;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
-
 /**
- * Forwards incoming SMS via SMTP (real auto-send) + optional API push.
- * Opening the Gmail app from a background receiver is blocked on modern Android,
- * so compose-only is a fallback when the user taps a notification.
+ * Device agent for FieldSense API:
+ * - uploads inbound SMS
+ * - heartbeats
+ * - polls outbound jobs and sends SMS via Android SmsManager
+ * Designed for API 24+ (Android 7) including older Huawei/Xiaomi builds.
  */
 public final class SmsForwardBridge {
     private static final String TAG = "FieldSenseSms";
     private static final String PREFS = "fieldsense_sms";
     private static final String CAP_PREFS = "CapacitorStorage";
-    private static final String KEY = "fieldsense.sms-forward.v1";
-    private static final String CHANNEL_ID = "sms_forward";
+    private static final String KEY = "fieldsense.device-agent.v2";
+    private static final String LEGACY_KEY = "fieldsense.sms-forward.v1";
+    private static final String CHANNEL_ID = "sms_relay";
     private static final int NOTIF_ID = 4201;
     private static final ExecutorService IO = Executors.newSingleThreadExecutor();
 
@@ -55,8 +53,8 @@ public final class SmsForwardBridge {
         Context app = context.getApplicationContext();
         JSONObject settings = readSettings(app);
         if (settings == null || !settings.optBoolean("enabled", false)) {
-            Log.i(TAG, "SMS ignored — forward disabled or missing settings");
-            showNotification(app, "SMS not forwarded", "Turn on Forward and Save settings in FieldSense SMS.", null);
+            Log.i(TAG, "SMS ignored — relay disabled");
+            showNotification(app, "SMS not relayed", "Turn on Relay and Save in FieldSense.", null);
             return;
         }
 
@@ -65,64 +63,172 @@ public final class SmsForwardBridge {
         if (preview.length() > 80) preview = preview.substring(0, 80) + "…";
 
         writeLastEvent(app, from, body, receivedAt, "received");
-        showNotification(
-                app,
-                "SMS from " + safe(from),
-                preview.isEmpty() ? "Forwarding…" : preview,
-                buildGmailIntent(app, settings, from, body, receivedAt)
-        );
+        showNotification(app, "SMS from " + safe(from), preview.isEmpty() ? "Uploading…" : preview, openAppIntent(app));
 
         IO.execute(() -> {
-            boolean smtpOk = false;
-            String smtpDetail = "skipped";
-            if (settings.optBoolean("smtpEnabled", true)) {
-                try {
-                    sendSmtp(settings, from, body, receivedAt);
-                    smtpOk = true;
-                    smtpDetail = "sent";
-                    Log.i(TAG, "SMTP send OK");
-                } catch (Exception e) {
-                    smtpDetail = e.getMessage() == null ? "SMTP failed" : e.getMessage();
-                    Log.e(TAG, "SMTP send failed", e);
-                }
+            try {
+                int code = postInbound(settings, from, body, receivedAt);
+                writeLastEvent(app, from, body, receivedAt, "uploaded HTTP " + code);
+                showNotification(app, "SMS uploaded", "Inbox + optional email forward via server", openAppIntent(app));
+            } catch (Exception e) {
+                String detail = e.getMessage() == null ? "upload failed" : e.getMessage();
+                Log.e(TAG, "Inbound upload failed", e);
+                writeLastEvent(app, from, body, receivedAt, "error: " + detail);
+                showNotification(app, "SMS upload failed", detail, openAppIntent(app));
             }
-
-            String apiDetail = "skipped";
-            if (settings.optBoolean("apiEnabled", false)) {
-                try {
-                    int code = pushApi(settings, from, body, receivedAt);
-                    apiDetail = "HTTP " + code;
-                } catch (Exception e) {
-                    apiDetail = e.getMessage() == null ? "API failed" : e.getMessage();
-                    Log.e(TAG, "API push failed", e);
-                }
-            }
-
-            writeLastEvent(app, from, body, receivedAt, "smtp=" + smtpDetail + "; api=" + apiDetail);
-            showNotification(
-                    app,
-                    smtpOk ? "SMS emailed" : "SMS forward issue",
-                    smtpOk
-                            ? ("Sent to " + settings.optString("forwardEmail", ""))
-                            : ("Email not sent: " + smtpDetail + " (tap to open Gmail draft)"),
-                    buildGmailIntent(app, settings, from, body, receivedAt)
-            );
         });
     }
 
     public static void saveSettingsJson(Context context, String json) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         prefs.edit().putString(KEY, json).apply();
-        // Also mirror into Capacitor storage for compatibility.
         context.getSharedPreferences(CAP_PREFS, Context.MODE_PRIVATE)
                 .edit()
                 .putString(KEY, json)
                 .apply();
+        try {
+            JSONObject settings = new JSONObject(json);
+            if (settings.optBoolean("enabled", false)) {
+                DeviceAgentService.start(context.getApplicationContext());
+            } else {
+                DeviceAgentService.stop(context.getApplicationContext());
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     public static String getLastEventJson(Context context) {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getString("last_event", "{}");
+    }
+
+    public static String testHeartbeat(Context context) {
+        JSONObject settings = readSettings(context);
+        if (settings == null) return "No settings saved";
+        try {
+            heartbeat(settings);
+            writeLastEvent(context, "server", "heartbeat", nowIsoUtc(), "heartbeat ok");
+            DeviceAgentService.start(context.getApplicationContext());
+            return "Heartbeat OK — relay service started";
+        } catch (Exception e) {
+            String msg = e.getMessage() == null ? "failed" : e.getMessage();
+            writeLastEvent(context, "server", "heartbeat", nowIsoUtc(), "heartbeat error: " + msg);
+            return "Heartbeat failed: " + msg;
+        }
+    }
+
+    public static void pollOnce(Context context) {
+        JSONObject settings = readSettings(context);
+        if (settings == null || !settings.optBoolean("enabled", false)) return;
+        IO.execute(() -> {
+            try {
+                heartbeat(settings);
+                JSONArray jobs = fetchPending(settings);
+                for (int i = 0; i < jobs.length(); i++) {
+                    JSONObject job = jobs.getJSONObject(i);
+                    String jobId = job.optString("id", "");
+                    String to = job.optString("toNumber", "");
+                    String body = job.optString("body", "");
+                    try {
+                        sendSms(context, to, body);
+                        reportResult(settings, jobId, "sent", null);
+                        writeLastEvent(context, to, body, nowIsoUtc(), "outbound sent job=" + jobId);
+                        showNotification(context, "SMS sent", "To " + to, openAppIntent(context));
+                    } catch (Exception sendErr) {
+                        String err = sendErr.getMessage() == null ? "send failed" : sendErr.getMessage();
+                        reportResult(settings, jobId, "failed", err);
+                        writeLastEvent(context, to, body, nowIsoUtc(), "outbound failed: " + err);
+                        showNotification(context, "SMS send failed", err, openAppIntent(context));
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "pollOnce failed", e);
+                writeLastEvent(context, "server", "poll", nowIsoUtc(),
+                        "poll error: " + (e.getMessage() == null ? "failed" : e.getMessage()));
+            }
+        });
+    }
+
+    private static void sendSms(Context context, String to, String body) {
+        if (to == null || to.trim().isEmpty()) throw new IllegalArgumentException("Empty destination");
+        if (body == null) body = "";
+        SmsManager sms = SmsManager.getDefault();
+        if (body.length() > 160) {
+            sms.sendMultipartTextMessage(to, null, sms.divideMessage(body), null, null);
+        } else {
+            sms.sendTextMessage(to, null, body, null, null);
+        }
+    }
+
+    private static void heartbeat(JSONObject settings) throws Exception {
+        request(settings, "POST", "/api/device/heartbeat", null);
+    }
+
+    private static int postInbound(JSONObject settings, String from, String body, String receivedAt) throws Exception {
+        JSONObject payload = new JSONObject();
+        payload.put("from", from);
+        payload.put("body", body);
+        payload.put("receivedAt", receivedAt);
+        HttpURLConnection conn = request(settings, "POST", "/api/device/inbound-sms", payload.toString());
+        int code = conn.getResponseCode();
+        conn.disconnect();
+        if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
+        return code;
+    }
+
+    private static JSONArray fetchPending(JSONObject settings) throws Exception {
+        HttpURLConnection conn = request(settings, "GET", "/api/device/outbound/pending", null);
+        int code = conn.getResponseCode();
+        String raw = readBody(conn, code);
+        conn.disconnect();
+        if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code + " " + raw);
+        return new JSONArray(raw);
+    }
+
+    private static void reportResult(JSONObject settings, String jobId, String status, String error) throws Exception {
+        JSONObject payload = new JSONObject();
+        payload.put("status", status);
+        if (error != null) payload.put("error", error);
+        HttpURLConnection conn = request(settings, "POST", "/api/device/outbound/" + jobId + "/result", payload.toString());
+        int code = conn.getResponseCode();
+        conn.disconnect();
+        if (code < 200 || code >= 300) throw new IllegalStateException("result HTTP " + code);
+    }
+
+    private static HttpURLConnection request(JSONObject settings, String method, String path, String jsonBody) throws Exception {
+        String base = settings.optString("apiBase", "").trim().replaceAll("/$", "");
+        String token = settings.optString("deviceToken", "").trim();
+        if (base.isEmpty()) throw new IllegalArgumentException("Set API base URL");
+        if (token.isEmpty()) throw new IllegalArgumentException("Set device token");
+
+        URL url = new URL(base + path);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setConnectTimeout(20000);
+        conn.setReadTimeout(20000);
+        conn.setRequestMethod(method);
+        conn.setRequestProperty("Accept", "application/json");
+        conn.setRequestProperty("X-Device-Token", token);
+        if (jsonBody != null) {
+            byte[] bytes = jsonBody.getBytes(StandardCharsets.UTF_8);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setFixedLengthStreamingMode(bytes.length);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(bytes);
+            }
+        }
+        return conn;
+    }
+
+    private static String readBody(HttpURLConnection conn, int code) throws Exception {
+        InputStream stream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+        if (stream == null) return "";
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = br.readLine()) != null) sb.append(line);
+        }
+        return sb.toString();
     }
 
     private static void writeLastEvent(Context context, String from, String body, String receivedAt, String status) {
@@ -140,7 +246,7 @@ public final class SmsForwardBridge {
         }
     }
 
-    private static JSONObject readSettings(Context context) {
+    public static JSONObject readSettings(Context context) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             String raw = prefs.getString(KEY, null);
@@ -148,6 +254,27 @@ public final class SmsForwardBridge {
                 SharedPreferences cap = context.getSharedPreferences(CAP_PREFS, Context.MODE_PRIVATE);
                 raw = cap.getString(KEY, null);
                 if (raw == null) raw = cap.getString("_cap_" + KEY, null);
+            }
+            // Migrate legacy SMTP-only settings if present and new key missing.
+            if (raw == null) {
+                String legacy = prefs.getString(LEGACY_KEY, null);
+                if (legacy == null) {
+                    SharedPreferences cap = context.getSharedPreferences(CAP_PREFS, Context.MODE_PRIVATE);
+                    legacy = cap.getString(LEGACY_KEY, null);
+                }
+                if (legacy != null) {
+                    JSONObject old = new JSONObject(legacy);
+                    JSONObject migrated = new JSONObject();
+                    migrated.put("enabled", old.optBoolean("enabled", false));
+                    String endpoint = old.optString("apiEndpoint", "");
+                    if (endpoint.contains("/api/")) {
+                        migrated.put("apiBase", endpoint.replaceAll("/api/.*$", ""));
+                    } else {
+                        migrated.put("apiBase", endpoint);
+                    }
+                    migrated.put("deviceToken", old.optString("apiAuthToken", ""));
+                    raw = migrated.toString();
+                }
             }
             if (raw == null) return null;
             return new JSONObject(raw);
@@ -157,72 +284,11 @@ public final class SmsForwardBridge {
         }
     }
 
-    private static void sendSmtp(JSONObject settings, String from, String body, String receivedAt) throws Exception {
-        String to = settings.optString("forwardEmail", "").trim();
-        String smtpUser = settings.optString("smtpUser", "").trim();
-        String smtpPass = settings.optString("smtpAppPassword", "").trim().replace(" ", "");
-        String host = settings.optString("smtpHost", "smtp.gmail.com").trim();
-        int port = settings.optInt("smtpPort", 587);
-
-        if (!to.contains("@")) throw new IllegalArgumentException("Set forward-to email");
-        if (!smtpUser.contains("@")) throw new IllegalArgumentException("Set Gmail address (SMTP user)");
-        if (smtpPass.length() < 8) {
-            throw new IllegalArgumentException("Set a Gmail App Password (not your normal password)");
-        }
-
-        String subject = "SMS from " + safe(from);
-        String text = "From: " + safe(from)
-                + "\nReceived: " + receivedAt
-                + "\nSource: device SMS (FieldSense auto-forward)\n\n"
-                + (body == null ? "" : body);
-
-        Properties props = new Properties();
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.host", host);
-        props.put("mail.smtp.port", String.valueOf(port));
-        props.put("mail.smtp.ssl.trust", host);
-
-        final String user = smtpUser;
-        final String pass = smtpPass;
-        Session session = Session.getInstance(props, new Authenticator() {
-            @Override
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(user, pass);
-            }
-        });
-
-        MimeMessage message = new MimeMessage(session);
-        message.setFrom(new InternetAddress(smtpUser));
-        message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
-        message.setSubject(subject, "UTF-8");
-        message.setText(text, "UTF-8");
-        Transport.send(message);
-    }
-
-    private static Intent buildGmailIntent(Context context, JSONObject settings, String from, String body, String receivedAt) {
-        String email = settings.optString("forwardEmail", "");
-        String subject = "SMS from " + safe(from);
-        String text = "From: " + safe(from) + "\nReceived: " + receivedAt + "\nSource: device SMS\n\n" + (body == null ? "" : body);
-
-        Intent gmail = new Intent(Intent.ACTION_SEND);
-        gmail.setType("message/rfc822");
-        gmail.putExtra(Intent.EXTRA_EMAIL, new String[]{email});
-        gmail.putExtra(Intent.EXTRA_SUBJECT, subject);
-        gmail.putExtra(Intent.EXTRA_TEXT, text);
-        gmail.setPackage("com.google.android.gm");
-        gmail.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        try {
-            context.getPackageManager().getPackageInfo("com.google.android.gm", 0);
-            return gmail;
-        } catch (Exception e) {
-            Intent mailto = new Intent(Intent.ACTION_SENDTO);
-            mailto.setData(Uri.parse("mailto:" + Uri.encode(email)));
-            mailto.putExtra(Intent.EXTRA_SUBJECT, subject);
-            mailto.putExtra(Intent.EXTRA_TEXT, text);
-            mailto.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            return Intent.createChooser(mailto, "Send SMS via email");
-        }
+    private static Intent openAppIntent(Context context) {
+        Intent i = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (i == null) i = new Intent(context, MainActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        return i;
     }
 
     private static void showNotification(Context context, String title, String text, Intent contentIntent) {
@@ -255,67 +321,12 @@ public final class SmsForwardBridge {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "SMS forward",
+                "SMS relay",
                 NotificationManager.IMPORTANCE_HIGH
         );
-        channel.setDescription("Alerts when an SMS is forwarded to email/API");
+        channel.setDescription("Inbound/outbound SMS relay status");
         NotificationManager nm = context.getSystemService(NotificationManager.class);
         if (nm != null) nm.createNotificationChannel(channel);
-    }
-
-    private static int pushApi(JSONObject settings, String from, String body, String receivedAt) throws Exception {
-        String endpoint = settings.optString("apiEndpoint", "").trim();
-        if (endpoint.isEmpty()) throw new IllegalArgumentException("API endpoint empty");
-
-        JSONObject sms = new JSONObject();
-        sms.put("from", from);
-        sms.put("body", body);
-        sms.put("receivedAt", receivedAt);
-        sms.put("simulated", false);
-
-        JSONObject notification = new JSONObject();
-        notification.put("title", "SMS from " + safe(from));
-        notification.put("message", body);
-
-        JSONObject message = new JSONObject();
-        message.put("from", from);
-        message.put("body", body);
-        message.put("receivedAt", receivedAt);
-        message.put("simulated", false);
-
-        JSONObject payload = new JSONObject();
-        payload.put("type", "sms.received");
-        payload.put("notification", notification);
-        payload.put("message", message);
-        payload.put("sms", sms);
-
-        URL url = new URL(endpoint);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setConnectTimeout(15000);
-        conn.setReadTimeout(15000);
-        conn.setRequestMethod("POST");
-        conn.setDoOutput(true);
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("Accept", "application/json");
-
-        String header = settings.optString("apiAuthHeader", "Authorization").trim();
-        String token = settings.optString("apiAuthToken", "").trim();
-        if (!header.isEmpty() && !token.isEmpty()) {
-            if (header.equalsIgnoreCase("Authorization") && !token.toLowerCase().startsWith("bearer ")) {
-                token = "Bearer " + token;
-            }
-            conn.setRequestProperty(header, token);
-        }
-
-        byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
-        conn.setFixedLengthStreamingMode(bytes.length);
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(bytes);
-        }
-        int code = conn.getResponseCode();
-        conn.disconnect();
-        if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
-        return code;
     }
 
     private static String safe(String value) {
