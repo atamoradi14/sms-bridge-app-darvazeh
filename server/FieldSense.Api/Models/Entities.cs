@@ -26,6 +26,8 @@ public class Device
     public Guid UserId { get; set; }
     public AppUser User { get; set; } = null!;
     public string Name { get; set; } = "Iran phone";
+    /// <summary>Stable phone app install id so re-login reuses the same device row.</summary>
+    public string? InstallationId { get; set; }
     public string DeviceToken { get; set; } = "";
     public string? PhoneNumber { get; set; }
     public bool IsOnline { get; set; }

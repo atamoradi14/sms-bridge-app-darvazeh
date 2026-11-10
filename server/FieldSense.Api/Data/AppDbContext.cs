@@ -16,6 +16,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<AppUser>().HasIndex(u => u.Email).IsUnique();
         modelBuilder.Entity<Device>().HasIndex(d => d.DeviceToken).IsUnique();
         modelBuilder.Entity<Device>()
+            .HasIndex(d => new { d.UserId, d.InstallationId });
+        modelBuilder.Entity<Device>()
             .HasOne(d => d.User).WithMany(u => u.Devices).HasForeignKey(d => d.UserId);
         modelBuilder.Entity<SmsMessage>()
             .HasOne(m => m.User).WithMany(u => u.Messages).HasForeignKey(m => m.UserId);

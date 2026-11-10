@@ -36,7 +36,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(o =>
+    {
+        o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -76,6 +80,16 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+    // Lightweight SQLite column add for existing DBs (EnsureCreated does not migrate).
+    try
+    {
+        db.Database.ExecuteSqlRaw(
+            "ALTER TABLE Devices ADD COLUMN InstallationId TEXT NULL");
+    }
+    catch
+    {
+        // column already exists
+    }
 }
 
 app.UseSwagger();

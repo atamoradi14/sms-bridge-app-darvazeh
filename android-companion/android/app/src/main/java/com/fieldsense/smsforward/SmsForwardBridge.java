@@ -199,7 +199,7 @@ public final class SmsForwardBridge {
         String base = settings.optString("apiBase", "").trim().replaceAll("/$", "");
         String token = settings.optString("deviceToken", "").trim();
         if (base.isEmpty()) throw new IllegalArgumentException("Set API base URL");
-        if (token.isEmpty()) throw new IllegalArgumentException("Set device token");
+        if (token.isEmpty()) throw new IllegalArgumentException("Sign in with email first (device not linked)");
 
         URL url = new URL(base + path);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();

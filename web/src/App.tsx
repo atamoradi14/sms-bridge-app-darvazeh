@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { api, API_BASE, usesSampleData, type Message, type User } from "./api";
+import { api, API_BASE, usesSampleData, type Device, type Message, type User } from "./api";
 import { loadLang, saveLang, t, type Lang, type MsgKey } from "./i18n";
 
 type Tab = "inbox" | "send" | "device" | "settings" | "admin";
@@ -13,7 +13,8 @@ function applyDocumentLang(lang: Lang) {
 export default function App() {
   const [lang, setLang] = useState<Lang>(() => loadLang());
   const [token, setToken] = useState(() => api.getToken());
-  const [user, setUser] = useState<(User & { devices?: unknown }) | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [devices, setDevices] = useState<Device[]>([]);
   const [tab, setTab] = useState<Tab>("inbox");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -28,11 +29,6 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [toNumber, setToNumber] = useState("");
   const [smsBody, setSmsBody] = useState("");
-  const [deviceName, setDeviceName] = useState(() =>
-    loadLang() === "fa" ? "گوشی ایران" : "Iran phone",
-  );
-  const [devicePhone, setDevicePhone] = useState("");
-  const [pairedToken, setPairedToken] = useState<string | null>(null);
   const [forwardOn, setForwardOn] = useState(false);
   const [forwardEmail, setForwardEmail] = useState("");
   const [adminUsers, setAdminUsers] = useState<
@@ -46,17 +42,12 @@ export default function App() {
   useEffect(() => {
     applyDocumentLang(lang);
     saveLang(lang);
-    setDeviceName((prev) => {
-      if (prev === "Iran phone" || prev === "گوشی ایران" || !prev) {
-        return lang === "fa" ? "گوشی ایران" : "Iran phone";
-      }
-      return prev;
-    });
   }, [lang]);
 
   async function refresh() {
     const me = await api.me();
     setUser(me);
+    setDevices(me.devices || []);
     setForwardOn(me.forwardEmailEnabled);
     setForwardEmail(me.forwardEmailAddress || me.email);
     const msgs = await api.messages();
@@ -122,6 +113,7 @@ export default function App() {
     api.setToken(null);
     setToken(null);
     setUser(null);
+    setDevices([]);
     setOtpSent(false);
     setCode("");
   }
@@ -380,52 +372,55 @@ export default function App() {
 
       {tab === "device" && (
         <section className="card">
-          <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>{tr("deviceTitle")}</h2>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <h2 style={{ margin: 0, fontFamily: "var(--font-display)" }}>{tr("deviceTitle")}</h2>
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => refresh().catch((e) => setError(e.message))}
+            >
+              {tr("refresh")}
+            </button>
+          </div>
           <p className="muted">{tr("deviceLead")}</p>
-          <div className="field">
-            <label>{tr("deviceName")}</label>
-            <input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>{tr("simOptional")}</label>
-            <input
-              value={devicePhone}
-              onChange={(e) => setDevicePhone(e.target.value)}
-              placeholder="+98…"
-              dir="ltr"
-            />
-          </div>
-          <button
-            className="btn"
-            type="button"
-            style={{ marginTop: "1rem" }}
-            onClick={async () => {
-              setBusy(true);
-              setError(null);
-              try {
-                const d = await api.pairDevice(deviceName, devicePhone || undefined);
-                setPairedToken(d.deviceToken);
-                await refresh();
-              } catch (err) {
-                setError(err instanceof Error ? err.message : "Pair failed");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {tr("generateToken")}
-          </button>
-          {pairedToken && (
-            <div style={{ marginTop: "1rem" }}>
-              <p className="muted">{tr("copyToken")}</p>
-              <p className="mono token-box" dir="ltr">
-                {pairedToken}
-              </p>
-              <p className="muted mono" style={{ fontSize: "0.8rem" }} dir="ltr">
-                {tr("androidApi")}: {API_BASE || tr("sampleMode")}
-              </p>
-            </div>
-          )}
+          {devices.length === 0 && <p className="muted">{tr("noDevices")}</p>}
+          {devices.map((d) => (
+            <article key={d.id} className="msg row" style={{ justifyContent: "space-between" }}>
+              <div>
+                <strong>{d.name || tr("deviceTitle")}</strong>
+                <div className="muted" style={{ fontSize: "0.85rem" }}>
+                  <span className={`badge ${d.isOnline ? "in" : "out"}`}>
+                    {d.isOnline ? tr("deviceOnline") : tr("deviceOffline")}
+                  </span>
+                  {d.phoneNumber ? (
+                    <span className="mono" dir="ltr" style={{ marginInlineStart: "0.5rem" }}>
+                      {tr("simLabel")}: {d.phoneNumber}
+                    </span>
+                  ) : null}
+                  {d.lastSeenAt ? (
+                    <div className="mono" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }} dir="ltr">
+                      {tr("lastSeen")}:{" "}
+                      {new Date(d.lastSeenAt).toLocaleString(lang === "fa" ? "fa-IR" : "en-NZ")}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <button
+                className="btn danger"
+                type="button"
+                onClick={async () => {
+                  try {
+                    await api.removeDevice(d.id);
+                    await refresh();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Remove failed");
+                  }
+                }}
+              >
+                {tr("removeDevice")}
+              </button>
+            </article>
+          ))}
         </section>
       )}
 

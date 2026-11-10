@@ -79,6 +79,9 @@ public class UserController(AppDbContext db) : ControllerBase
         return Ok(items);
     }
 
+    /// <summary>
+    /// Legacy manual pair. Prefer phone OTP login (client=phone) which auto-links.
+    /// </summary>
     [HttpPost("devices/pair")]
     public async Task<IActionResult> PairDevice([FromBody] PairDeviceDto dto)
     {
@@ -96,6 +99,16 @@ public class UserController(AppDbContext db) : ControllerBase
         return Ok(new { device.Id, device.Name, device.DeviceToken, device.PhoneNumber });
     }
 
+    [HttpDelete("devices/{id:guid}")]
+    public async Task<IActionResult> RemoveDevice(Guid id)
+    {
+        var device = await db.Devices.FirstOrDefaultAsync(d => d.Id == id && d.UserId == UserId);
+        if (device == null) return NotFound();
+        db.Devices.Remove(device);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
     [HttpPost("sms/send")]
     public async Task<IActionResult> SendSms([FromBody] SendSmsDto dto)
     {
@@ -108,7 +121,7 @@ public class UserController(AppDbContext db) : ControllerBase
             .OrderByDescending(d => d.LastSeenAt)
             .FirstOrDefaultAsync();
         if (device == null)
-            return BadRequest(new { error = "No paired Iran phone device. Pair the Android app first." });
+            return BadRequest(new { error = "No linked Iran phone. Sign in on the Android app with the same email." });
 
         var to = dto.ToNumber.Trim();
         var body = dto.Body?.Trim() ?? "";

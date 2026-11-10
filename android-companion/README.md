@@ -6,20 +6,21 @@ Capacitor Android app that stays with the Iranian SIM and relays SMS through the
 
 ## What it does
 
-1. Listens for inbound SMS → `POST /api/device/inbound-sms` with `X-Device-Token`
-2. Foreground service heartbeats + polls `GET /api/device/outbound/pending`
-3. Sends queued SMS with `SmsManager`, then reports `POST /api/device/outbound/{id}/result`
+1. Sign in with the **same email OTP** as the web app (`client=phone`) → server auto-links this installation and returns a device token (stored on the phone; user never copies it)
+2. Listens for inbound SMS → `POST /api/device/inbound-sms` with `X-Device-Token`
+3. Foreground service heartbeats + polls `GET /api/device/outbound/pending`
+4. Sends queued SMS with `SmsManager`, then reports `POST /api/device/outbound/{id}/result`
 
 Email OTP / inbox email forward is handled by the **server** (Azure ACS), not Gmail SMTP on the phone.
 
 ## Setup
 
 1. Run the API + Vite web app.
-2. Sign in on the web → **Device** → generate a device token.
-3. On the Iran phone APK:
-   - Paste **API base URL** (reachable from Iran — public HTTPS URL, not LAN IP behind NAT)
-   - Paste **device token**
-   - Turn **Relay on** → Save
+2. On the Iran phone APK:
+   - Enter **API base URL** (reachable from Iran — public HTTPS URL, not LAN IP behind NAT)
+   - Sign in with the **same email** as the web app and the OTP code
+   - Relay starts after login; adjust and Save if needed
+3. On the web **Device** tab, the phone appears as linked (online/offline). No token paste step.
 4. Grant SMS (receive/read/send), notifications, and ignore battery optimizations.
 5. Huawei/Xiaomi: App launch → manage manually → Autostart + allow background.
 

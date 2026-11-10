@@ -1,118 +1,200 @@
 <!doctype html>
-<html lang="en">
+<html lang="fa" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>FieldSense Relay</title>
+    <title>دروازه</title>
     <style>
       :root {
         color-scheme: light;
-        font-family: system-ui, -apple-system, sans-serif;
-        --ink: #12332d;
-        --muted: #4d6a63;
-        --teal: #1f9e86;
-        --teal-ink: #042f2a;
-        --bg: #eef6f3;
-        --line: rgba(18, 51, 45, 0.14);
+        font-family: "Segoe UI", Tahoma, system-ui, sans-serif;
+        --ink: #1a1410;
+        --muted: #5c4f45;
+        --teal: #8b1e1e;
+        --teal-ink: #fff8f0;
+        --bg: #f3efe6;
+        --line: rgba(26, 20, 16, 0.14);
         --danger: #b42318;
+        --ok: #1f6b4a;
       }
-      body { margin: 0; background: var(--bg); color: var(--ink); padding: 1rem; line-height: 1.45; }
+      body { margin: 0; background: linear-gradient(165deg, #ebe4d6, #f7f3ea 45%, #e8ddd0); color: var(--ink); padding: 1rem; line-height: 1.5; min-height: 100vh; }
       .card {
-        background: rgba(255, 255, 255, 0.92);
+        background: rgba(255, 252, 245, 0.94);
         border: 1px solid var(--line);
         border-radius: 1rem;
-        padding: 1rem;
+        padding: 1.1rem;
         max-width: 520px;
         margin: 0 auto;
+        box-shadow: 0 12px 40px rgba(26, 20, 16, 0.08);
       }
-      h1 { margin: 0 0 0.25rem; font-size: 1.7rem; letter-spacing: -0.02em; }
+      h1 { margin: 0 0 0.2rem; font-size: 1.85rem; letter-spacing: -0.02em; }
+      .brand-en { margin: 0; font-size: 0.75rem; letter-spacing: 0.18em; color: var(--muted); text-transform: uppercase; }
       p { color: var(--muted); margin: 0.4rem 0; }
       label { display: block; font-size: 0.9rem; margin-top: 0.85rem; color: var(--muted); }
-      input[type="text"], input[type="url"], input[type="password"] {
+      input[type="text"], input[type="url"], input[type="email"], input[type="password"] {
         width: 100%; box-sizing: border-box; margin-top: 0.3rem;
         padding: 0.85rem 0.9rem; border-radius: 0.85rem; min-height: 48px;
-        border: 1px solid rgba(18, 51, 45, 0.18); font: inherit; font-size: 1rem;
+        border: 1px solid rgba(26, 20, 16, 0.18); font: inherit; font-size: 1rem;
+        background: #fff;
       }
       button {
-        margin-top: 1rem; margin-right: 0.5rem; background: var(--teal); color: var(--teal-ink);
+        margin-top: 1rem; margin-inline-end: 0.5rem; background: var(--teal); color: var(--teal-ink);
         border: 0; border-radius: 0.85rem; padding: 0.9rem 1.1rem; font: inherit; font-weight: 700;
         min-height: 52px; font-size: 1rem;
       }
-      button.secondary { background: #dceae5; }
-      .row { display: flex; gap: 0.65rem; align-items: center; margin-top: 0.9rem; min-height: 48px; }
+      button.secondary { background: #e4d8c8; color: var(--ink); }
+      button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+      .row { display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: center; margin-top: 0.9rem; }
       .hint { font-size: 0.85rem; color: var(--muted); }
-      .status { margin-top: 0.85rem; font-weight: 600; }
-      .error { color: var(--danger); }
+      .status { margin-top: 0.85rem; font-weight: 600; color: var(--ok); }
+      .error { color: var(--danger); font-weight: 600; }
       #lastEvent {
         white-space: pre-wrap; word-break: break-word;
         font-family: ui-monospace, monospace; font-size: 0.78rem;
-        background: #f4fbf8; border-radius: 0.75rem; padding: 0.75rem; border: 1px solid var(--line);
+        background: #f7f1e6; border-radius: 0.75rem; padding: 0.75rem; border: 1px solid var(--line);
+        direction: ltr; text-align: left;
       }
       .pill {
         display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px;
-        background: rgba(31, 158, 134, 0.16); font-size: 0.75rem; font-weight: 700;
+        background: rgba(139, 30, 30, 0.12); font-size: 0.75rem; font-weight: 700;
       }
+      .account {
+        margin-top: 0.75rem; padding: 0.75rem 0.9rem; border-radius: 0.85rem;
+        background: rgba(139, 30, 30, 0.08); border: 1px solid var(--line);
+      }
+      .account strong { display: block; direction: ltr; text-align: start; }
+      .hidden { display: none !important; }
+      [dir="ltr"] { direction: ltr; text-align: left; }
     </style>
   </head>
   <body>
     <div class="card">
-      <h1>FieldSense Relay</h1>
+      <p class="brand-en">DARVAZEH</p>
+      <h1>دروازه</h1>
       <p>
-        Leave this phone in Iran with your SIM. It uploads inbound SMS to your FieldSense server
-        and sends queued outbound SMS when you message from the web abroad.
+        همان ورود ایمیل وب‌اپ — گوشی ایران به‌صورت خودکار به حساب وصل می‌شود.
+        سیم‌کارت اینجا می‌ماند؛ صندوق از هر جا باز است.
       </p>
-      <p><span class="pill">Android 7+</span> Large controls · works on older Huawei / Xiaomi</p>
+      <p><span class="pill">Android 7+</span> بدون کپی توکن دستگاه</p>
 
-      <div class="row">
-        <input id="enabled" type="checkbox" />
-        <label for="enabled" style="margin: 0; color: var(--ink); font-weight: 600;">Relay on</label>
+      <div id="loginPanel">
+        <label>آدرس سرور API
+          <input id="apiBase" class="ltr" type="url" placeholder="https://api.example.com" autocomplete="off" dir="ltr" />
+        </label>
+        <label>ایمیل
+          <input id="email" type="email" placeholder="you@example.com" autocomplete="email" dir="ltr" />
+        </label>
+        <div id="otpBlock" class="hidden">
+          <label>کد یک‌بارمصرف
+            <input id="code" type="text" inputmode="numeric" placeholder="۶ رقم / 000000 در حالت نمونه" autocomplete="one-time-code" dir="ltr" />
+          </label>
+          <label id="adminPassWrap" class="hidden">رمز مدیر
+            <input id="adminPassword" type="password" autocomplete="current-password" dir="ltr" />
+          </label>
+        </div>
+        <div class="row">
+          <button id="requestOtp" type="button">ارسال کد</button>
+          <button id="verifyOtp" type="button" class="secondary hidden">ورود و اتصال</button>
+          <button id="backOtp" type="button" class="ghost hidden">بازگشت</button>
+        </div>
       </div>
 
-      <label>Server API base URL
-        <input id="apiBase" type="url" placeholder="https://api.example.com" autocomplete="off" />
-      </label>
-      <label>Device token (from web → Device)
-        <input id="deviceToken" type="password" placeholder="Paste device token" autocomplete="off" />
-      </label>
+      <div id="linkedPanel" class="hidden">
+        <div class="account">
+          <span class="hint">وصل به حساب</span>
+          <strong id="linkedEmail" dir="ltr"></strong>
+          <p class="hint" id="deviceMeta" style="margin: 0.35rem 0 0;"></p>
+        </div>
 
-      <button id="save" type="button">Save &amp; start relay</button>
-      <button id="test" type="button" class="secondary">Test heartbeat</button>
-      <button id="refresh" type="button" class="secondary">Refresh status</button>
+        <div class="row">
+          <input id="enabled" type="checkbox" />
+          <label for="enabled" style="margin: 0; color: var(--ink); font-weight: 600;">رله روشن</label>
+        </div>
+
+        <label>آدرس سرور API
+          <input id="apiBaseLinked" type="url" autocomplete="off" dir="ltr" />
+        </label>
+
+        <div class="row">
+          <button id="save" type="button">ذخیره و شروع رله</button>
+          <button id="test" type="button" class="secondary">تست heartbeat</button>
+          <button id="refresh" type="button" class="secondary">وضعیت</button>
+          <button id="signOut" type="button" class="ghost">خروج</button>
+        </div>
+      </div>
 
       <p id="status" class="status"></p>
-      <p class="hint">Last event</p>
+      <p id="error" class="error"></p>
+      <p class="hint">آخرین رویداد</p>
       <pre id="lastEvent">{}</pre>
       <p class="hint">
-        Allow SMS, Notifications, and “Ignore battery optimizations”. On Huawei: Settings →
-        Battery → App launch → FieldSense → manage manually (Autostart + run in background).
+        مجوز SMS، اعلان‌ها و «نادیده گرفتن بهینه‌سازی باتری» را بدهید. در هواوی: تنظیمات → باتری →
+        راه‌اندازی برنامه → دروازه → مدیریت دستی (شروع خودکار + پس‌زمینه).
       </p>
     </div>
 
     <script>
       const KEY = "fieldsense.device-agent.v2";
+      const INSTALL_KEY = "fieldsense.installation-id";
       const defaults = {
         enabled: false,
         apiBase: "",
         deviceToken: "",
+        email: "",
+        deviceName: "Iran phone",
+        deviceId: "",
       };
 
+      function uuid() {
+        if (crypto.randomUUID) return crypto.randomUUID();
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === "x" ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
+      }
+
+      function getInstallationId() {
+        let id = localStorage.getItem(INSTALL_KEY);
+        if (!id) {
+          id = uuid();
+          localStorage.setItem(INSTALL_KEY, id);
+        }
+        return id;
+      }
+
       function load() {
-        try { return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; }
-        catch { return { ...defaults }; }
+        try {
+          return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || "{}") };
+        } catch {
+          return { ...defaults };
+        }
       }
 
-      function fill(s) {
-        enabled.checked = !!s.enabled;
-        apiBase.value = s.apiBase || "";
-        deviceToken.value = s.deviceToken || "";
+      function setError(msg) {
+        error.textContent = msg || "";
       }
 
-      function readForm() {
-        return {
-          enabled: enabled.checked,
-          apiBase: (apiBase.value || "").trim().replace(/\/$/, ""),
-          deviceToken: (deviceToken.value || "").trim(),
-        };
+      function setStatus(msg, isError) {
+        status.textContent = msg || "";
+        status.className = isError ? "status error" : "status";
+      }
+
+      function showLinked(settings) {
+        const linked = !!(settings.deviceToken && settings.email);
+        loginPanel.classList.toggle("hidden", linked);
+        linkedPanel.classList.toggle("hidden", !linked);
+        if (linked) {
+          linkedEmail.textContent = settings.email;
+          deviceMeta.textContent = settings.deviceId
+            ? "دستگاه متصل · شناسه نصب ذخیره شد"
+            : "دستگاه متصل";
+          enabled.checked = !!settings.enabled;
+          apiBaseLinked.value = settings.apiBase || "";
+        } else {
+          apiBase.value = settings.apiBase || "";
+          email.value = settings.email || "";
+        }
       }
 
       function persist(settings) {
@@ -121,10 +203,14 @@
         if (window.FieldSenseSms && window.FieldSenseSms.saveSettings) {
           window.FieldSenseSms.saveSettings(json);
         }
-        status.textContent = settings.enabled
-          ? "Relay saved. Keep the app installed; inbound SMS and outbound queue will sync."
-          : "Saved. Relay is off.";
-        status.className = "status";
+        showLinked(settings);
+        setStatus(
+          settings.enabled
+            ? "رله ذخیره شد. پیامک ورودی و صف خروجی همگام می‌شوند."
+            : settings.deviceToken
+              ? "ذخیره شد. رله خاموش است."
+              : "",
+        );
         refreshLast();
       }
 
@@ -138,30 +224,148 @@
         }
       }
 
+      async function api(base, path, body) {
+        const url = base.replace(/\/$/, "") + path;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const err = new Error(data.error || res.statusText || "Request failed");
+          err.needAdminPassword = !!data.needAdminPassword;
+          throw err;
+        }
+        return data;
+      }
+
+      function showOtpStep(on) {
+        otpBlock.classList.toggle("hidden", !on);
+        verifyOtp.classList.toggle("hidden", !on);
+        backOtp.classList.toggle("hidden", !on);
+        requestOtp.classList.toggle("hidden", on);
+      }
+
+      async function onRequestOtp() {
+        setError("");
+        setStatus("");
+        const base = (apiBase.value || "").trim().replace(/\/$/, "");
+        const mail = (email.value || "").trim().toLowerCase();
+        if (!base) return setError("آدرس API را وارد کنید");
+        if (!mail) return setError("ایمیل را وارد کنید");
+        requestOtp.disabled = true;
+        try {
+          const res = await api(base, "/api/auth/request-otp", { email: mail });
+          showOtpStep(true);
+          setStatus(res.detail || "کد ارسال شد. در حالت نمونه از 000000 استفاده کنید.");
+        } catch (e) {
+          setError(e.message || String(e));
+        } finally {
+          requestOtp.disabled = false;
+        }
+      }
+
+      async function onVerifyOtp() {
+        setError("");
+        setStatus("در حال ورود و اتصال گوشی…");
+        const base = (apiBase.value || "").trim().replace(/\/$/, "");
+        const mail = (email.value || "").trim().toLowerCase();
+        const otp = (code.value || "").trim();
+        if (!otp) return setError("کد را وارد کنید");
+        verifyOtp.disabled = true;
+        try {
+          const payload = {
+            email: mail,
+            code: otp,
+            client: "phone",
+            installationId: getInstallationId(),
+            deviceName: "Iran phone",
+          };
+          if (!adminPassWrap.classList.contains("hidden") && adminPassword.value) {
+            payload.adminPassword = adminPassword.value;
+          }
+          const res = await api(base, "/api/auth/verify-otp", payload);
+          const device = res.device || {};
+          const deviceToken = device.deviceToken || device.DeviceToken;
+          if (!deviceToken) {
+            throw new Error("سرور توکن دستگاه برنگرداند — API را به‌روز کنید");
+          }
+          const next = {
+            ...load(),
+            enabled: true,
+            apiBase: base,
+            deviceToken,
+            email: mail,
+            deviceId: device.id || device.Id || "",
+            deviceName: device.name || device.Name || "Iran phone",
+          };
+          persist(next);
+          code.value = "";
+          adminPassword.value = "";
+          adminPassWrap.classList.add("hidden");
+          showOtpStep(false);
+          setStatus("ورود موفق — گوشی به حساب وصل شد.");
+        } catch (e) {
+          if (e.needAdminPassword) {
+            adminPassWrap.classList.remove("hidden");
+            setError("رمز مدیر لازم است");
+          } else {
+            setError(e.message || String(e));
+          }
+          setStatus("");
+        } finally {
+          verifyOtp.disabled = false;
+        }
+      }
+
       async function testHeartbeat() {
-        const s = readForm();
+        const s = load();
+        s.enabled = enabled.checked;
+        s.apiBase = (apiBaseLinked.value || s.apiBase || "").trim().replace(/\/$/, "");
         persist(s);
-        status.textContent = "Testing…";
+        setStatus("در حال تست…");
         try {
           if (window.FieldSenseSms && window.FieldSenseSms.testHeartbeat) {
-            const res = window.FieldSenseSms.testHeartbeat();
-            status.textContent = res || "OK";
-            status.className = "status";
+            setStatus(window.FieldSenseSms.testHeartbeat() || "OK");
           } else {
-            status.textContent = "Native bridge missing — open inside the Android APK.";
-            status.className = "status error";
+            setStatus("پل بومی نیست — داخل APK اندروید باز کنید", true);
           }
         } catch (e) {
-          status.textContent = String(e);
-          status.className = "status error";
+          setStatus(String(e), true);
         }
         refreshLast();
       }
 
-      fill(load());
-      save.addEventListener("click", () => persist(readForm()));
+      const initial = load();
+      showLinked(initial);
+      showOtpStep(false);
+
+      requestOtp.addEventListener("click", onRequestOtp);
+      verifyOtp.addEventListener("click", onVerifyOtp);
+      backOtp.addEventListener("click", () => {
+        showOtpStep(false);
+        setError("");
+        setStatus("");
+      });
+      save.addEventListener("click", () => {
+        const s = load();
+        s.enabled = enabled.checked;
+        s.apiBase = (apiBaseLinked.value || "").trim().replace(/\/$/, "");
+        persist(s);
+      });
       test.addEventListener("click", testHeartbeat);
       refresh.addEventListener("click", refreshLast);
+      signOut.addEventListener("click", () => {
+        const s = load();
+        persist({
+          ...defaults,
+          apiBase: s.apiBase || "",
+          enabled: false,
+        });
+        showOtpStep(false);
+        setStatus("از حساب خارج شدید. برای اتصال دوباره وارد شوید.");
+      });
       setInterval(refreshLast, 4000);
       refreshLast();
     </script>

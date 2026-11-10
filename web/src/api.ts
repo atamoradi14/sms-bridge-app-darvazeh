@@ -177,8 +177,36 @@ async function sampleApi<T>(path: string, init?: RequestInit): Promise<T> {
         messageCount: state.messages.length,
       });
     }
+
+    let device: { id: string; name: string; deviceToken: string; phoneNumber?: string | null } | null =
+      null;
+    const client = String(body.client || "web").toLowerCase();
+    if (client === "phone" || client === "android" || client === "device") {
+      const installId = String(body.installationId || "sample-install");
+      let existing = state.devices.find((d) => d.id === "install-" + installId);
+      if (!existing) {
+        existing = {
+          id: "install-" + installId,
+          name: body.deviceName || "Iran phone",
+          phoneNumber: body.phoneNumber || null,
+          isOnline: true,
+          lastSeenAt: new Date().toISOString(),
+        };
+        state.devices = [existing, ...state.devices];
+      } else {
+        existing.isOnline = true;
+        existing.lastSeenAt = new Date().toISOString();
+      }
+      device = {
+        id: existing.id,
+        name: existing.name,
+        deviceToken: "sample-device-" + existing.id.slice(-8),
+        phoneNumber: existing.phoneNumber,
+      };
+    }
+
     saveSample(state);
-    return { token: sampleToken(email), user: state.user } as T;
+    return { token: sampleToken(email), user: state.user, device } as T;
   }
 
   if (path === "/api/user/me") {
@@ -191,22 +219,11 @@ async function sampleApi<T>(path: string, init?: RequestInit): Promise<T> {
     saveSample(state);
     return { ok: true } as T;
   }
-  if (path === "/api/user/devices/pair" && method === "POST") {
-    const device: Device = {
-      id: crypto.randomUUID(),
-      name: body.name || "Iran phone",
-      phoneNumber: body.phoneNumber || null,
-      isOnline: false,
-      lastSeenAt: null,
-    };
-    state.devices = [device, ...state.devices];
+  if (path.startsWith("/api/user/devices/") && method === "DELETE") {
+    const id = path.split("/").pop();
+    state.devices = state.devices.filter((d) => d.id !== id);
     saveSample(state);
-    return {
-      id: device.id,
-      name: device.name,
-      deviceToken: "sample-device-" + device.id.slice(0, 8),
-      phoneNumber: device.phoneNumber,
-    } as T;
+    return { ok: true } as T;
   }
   if (path === "/api/user/sms/send" && method === "POST") {
     const msg: Message = {
@@ -300,11 +317,8 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ forwardEmailEnabled, forwardEmailAddress }),
     }),
-  pairDevice: (name: string, phoneNumber?: string) =>
-    req<{ id: string; name: string; deviceToken: string; phoneNumber?: string }>(
-      "/api/user/devices/pair",
-      { method: "POST", body: JSON.stringify({ name, phoneNumber }) },
-    ),
+  removeDevice: (id: string) =>
+    req(`/api/user/devices/${id}`, { method: "DELETE" }),
   sendSms: (toNumber: string, body: string) =>
     req("/api/user/sms/send", {
       method: "POST",
