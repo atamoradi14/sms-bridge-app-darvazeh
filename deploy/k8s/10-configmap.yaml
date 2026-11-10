@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fieldsense-config
+  namespace: sms-forwarder
+  labels:
+    app.kubernetes.io/part-of: fieldsense
+data:
+  FieldSense__AdminEmail: "admin@ndorbit.co.nz"
+  FieldSense__AcsSenderAddress: "DoNotReply@ndorbit.co.nz"
+  FieldSense__AcsMock: "true"
+  # Comma-separated browser origins allowed to call the API directly.
+  # Include your web NodePort / Ingress origins.
+  FieldSense__CorsOrigin: "https://sms.example.com,http://127.0.0.1:30431,http://localhost:30431,http://127.0.0.1:43180"
+  ConnectionStrings__Default: "Data Source=/data/fieldsense.db"
+  ASPNETCORE_URLS: "http://0.0.0.0:8080"
+---
+# Mounted into the web pod as /usr/share/nginx/html/config.js
+# For NodePort without Ingress, set the API base to the API NodePort URL, e.g.:
+#   window.__FIELDSENSE_API_BASE__ = "http://YOUR_NODE_IP:30088";
+# With Ingress on one host, leave empty (same-origin /api).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fieldsense-web-config
+  namespace: sms-forwarder
+  labels:
+    app.kubernetes.io/part-of: fieldsense
+data:
+  config.js: |
+    window.__FIELDSENSE_API_BASE__ = "http://127.0.0.1:30088";
+

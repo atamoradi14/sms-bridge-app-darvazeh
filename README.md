@@ -103,3 +103,18 @@ export FieldSense__CorsOrigin='http://127.0.0.1:43123,https://your-web-host'
 ## Legacy v1.0
 
 Checkout tag `v1.0` for the original Next.js sensor demo + Gmail SMTP Android forwarder.
+
+## Deploy (Docker + Kubernetes)
+
+See **[deploy/README.md](deploy/README.md)** for Docker Hub build/push, Helm-less YAML under namespace `sms-forwarder`, and laptop scripts that SSH to `helsinki-server`.
+
+```bash
+export DOCKERHUB_USERNAME=yourdockerhub
+export IMAGE_TAG=v2.0.0
+./scripts/build-and-push.sh
+./scripts/deploy.sh apply --ssh helsinki-server --skip-ingress
+# later image rolls:
+./scripts/deploy.sh set-image --tag v2.0.0
+```
+
+GitHub Actions: `.github/workflows/docker-build-push.yml` and `deploy-k8s.yml` (add Docker Hub / kube or SSH secrets).

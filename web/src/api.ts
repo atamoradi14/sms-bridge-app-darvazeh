@@ -1,4 +1,14 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:5088";
+declare global {
+  interface Window {
+    __FIELDSENSE_API_BASE__?: string;
+  }
+}
+
+// Priority: runtime config.js (K8s ConfigMap) → Vite build arg → dev default.
+const API_BASE =
+  (typeof window !== "undefined" && window.__FIELDSENSE_API_BASE__) ||
+  import.meta.env.VITE_API_BASE ||
+  (import.meta.env.DEV ? "http://127.0.0.1:5088" : "");
 
 export type User = {
   id: string;

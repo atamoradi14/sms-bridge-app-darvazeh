@@ -1,0 +1,48 @@
+# Ingress splits same-origin traffic:
+#   /api /health /swagger  → fieldsense-api
+#   /                      → fieldsense-web
+# Edit host before apply, or skip:
+#   ./scripts/deploy.sh apply --skip-ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fieldsense
+  namespace: sms-forwarder
+  labels:
+    app.kubernetes.io/part-of: fieldsense
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: sms.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: fieldsense-api
+                port:
+                  number: 8080
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: fieldsense-api
+                port:
+                  number: 8080
+          - path: /swagger
+            pathType: Prefix
+            backend:
+              service:
+                name: fieldsense-api
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fieldsense-web
+                port:
+                  number: 80

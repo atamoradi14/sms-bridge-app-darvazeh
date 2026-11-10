@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fieldsense-api-data
+  namespace: sms-forwarder
+  labels:
+    app.kubernetes.io/name: fieldsense-api
+    app.kubernetes.io/part-of: fieldsense
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # Uncomment / set to match your cluster StorageClass:
+  # storageClassName: standard

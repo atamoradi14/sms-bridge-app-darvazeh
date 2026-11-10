@@ -1,0 +1,91 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: apply (full YAML) or set-image (roll images only)
+        required: true
+        default: set-image
+        type: choice
+        options:
+          - apply
+          - set-image
+      tag:
+        description: Docker image tag
+        required: true
+        default: latest
+      skip_ingress:
+        description: Skip applying Ingress
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require secrets
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          HELSINKI_SSH_KEY: ${{ secrets.HELSINKI_SSH_KEY }}
+          HELSINKI_SSH_HOST: ${{ secrets.HELSINKI_SSH_HOST }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ]; then
+            echo "Missing secret DOCKERHUB_USERNAME" >&2
+            exit 1
+          fi
+          if [ -z "$KUBE_CONFIG" ] && [ -z "$HELSINKI_SSH_KEY" ]; then
+            echo "Set either KUBE_CONFIG (base64 kubeconfig) or HELSINKI_SSH_KEY (+ HELSINKI_SSH_HOST)." >&2
+            exit 1
+          fi
+
+      - name: Deploy via kubeconfig
+        if: ${{ secrets.KUBE_CONFIG != '' }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_TAG: ${{ github.event.inputs.tag }}
+          KUBECONFIG_B64: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          SKIP=""
+          if [ "${{ github.event.inputs.skip_ingress }}" = "true" ]; then SKIP="--skip-ingress"; fi
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh "${{ github.event.inputs.mode }}" --local $SKIP
+
+      - name: Deploy via SSH to helsinki-server
+        if: ${{ secrets.KUBE_CONFIG == '' && secrets.HELSINKI_SSH_KEY != '' }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_TAG: ${{ github.event.inputs.tag }}
+          SSH_KEY: ${{ secrets.HELSINKI_SSH_KEY }}
+          SSH_HOST: ${{ secrets.HELSINKI_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          HOST="${SSH_HOST:-helsinki-server}"
+          # If HOST is user@ip, use it; else assume hostname and IdentityFile
+          printf 'Host helsinki-server\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_deploy\n  StrictHostKeyChecking accept-new\n' \
+            "$(echo "$HOST" | sed 's/^.*@//')" \
+            "$(echo "$HOST" | awk -F@ '{if (NF>1) print $1; else print "ubuntu"}')" \
+            > ~/.ssh/config
+          # Prefer using the provided host string directly when it contains @
+          if [[ "$HOST" == *@* ]]; then
+            TARGET="$HOST"
+          else
+            TARGET="helsinki-server"
+          fi
+          SKIP=""
+          if [ "${{ github.event.inputs.skip_ingress }}" = "true" ]; then SKIP="--skip-ingress"; fi
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh "${{ github.event.inputs.mode }}" --ssh "$TARGET" $SKIP

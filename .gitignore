@@ -63,3 +63,7 @@ next-env.d.ts
 !/public/FieldSense-SMS-debug.apk
 /android-companion/*.apk
 /android-companion/android/app/build/
+
+# deploy local overrides
+/deploy/k8s/20-secret.local.yaml
+/deploy/k8s/*.local.yaml

@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sms-forwarder
+resources:
+  - 00-namespace.yaml
+  - 10-configmap.yaml
+  - 20-secret.yaml
+  - 30-api-pvc.yaml
+  - 40-api-deployment.yaml
+  - 50-web-deployment.yaml
+  - 55-web-service-nodeport.yaml
+  - 60-ingress.yaml
+images:
+  - name: DOCKERHUB_USERNAME/fieldsense-api
+    newName: DOCKERHUB_USERNAME/fieldsense-api
+    newTag: IMAGE_TAG
+  - name: DOCKERHUB_USERNAME/fieldsense-web
+    newName: DOCKERHUB_USERNAME/fieldsense-web
+    newTag: IMAGE_TAG

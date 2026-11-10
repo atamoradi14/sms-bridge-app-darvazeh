@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+# Build from repo root:
+#   docker build -f deploy/docker/Dockerfile.api -t fieldsense-api:local .
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY server/FieldSense.Api/FieldSense.Api.csproj FieldSense.Api/
+RUN dotnet restore FieldSense.Api/FieldSense.Api.csproj
+COPY server/FieldSense.Api/ FieldSense.Api/
+WORKDIR /src/FieldSense.Api
+RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+WORKDIR /app
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /data \
+ && chown -R app:app /data /app
+ENV ASPNETCORE_URLS=http://0.0.0.0:8080 \
+    ConnectionStrings__Default="Data Source=/data/fieldsense.db" \
+    DOTNET_EnableDiagnostics=0
+EXPOSE 8080
+COPY --from=build --chown=app:app /app/publish ./
+USER app
+HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8080/health || exit 1
+ENTRYPOINT ["dotnet", "FieldSense.Api.dll"]
