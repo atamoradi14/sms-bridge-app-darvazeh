@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, API_BASE, usesSampleData, type Message, type User } from "./api";
+import { loadLang, saveLang, t, type Lang, type MsgKey } from "./i18n";
 
 type Tab = "inbox" | "send" | "device" | "settings" | "admin";
 
+function applyDocumentLang(lang: Lang) {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
+  document.title = lang === "fa" ? "دروازه" : "Darvazeh";
+}
+
 export default function App() {
+  const [lang, setLang] = useState<Lang>(() => loadLang());
   const [token, setToken] = useState(() => api.getToken());
   const [user, setUser] = useState<(User & { devices?: unknown }) | null>(null);
   const [tab, setTab] = useState<Tab>("inbox");
@@ -20,7 +28,9 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [toNumber, setToNumber] = useState("");
   const [smsBody, setSmsBody] = useState("");
-  const [deviceName, setDeviceName] = useState("Iran phone");
+  const [deviceName, setDeviceName] = useState(() =>
+    loadLang() === "fa" ? "گوشی ایران" : "Iran phone",
+  );
   const [devicePhone, setDevicePhone] = useState("");
   const [pairedToken, setPairedToken] = useState<string | null>(null);
   const [forwardOn, setForwardOn] = useState(false);
@@ -29,8 +39,20 @@ export default function App() {
     Array<{ id: string; email: string; role: string; canRelaySms: boolean; deviceCount: number }>
   >([]);
 
+  const tr = (key: MsgKey) => t(lang, key);
   const isAdmin = user?.role === "Admin";
   const canSend = !!(user?.canRelaySms || isAdmin);
+
+  useEffect(() => {
+    applyDocumentLang(lang);
+    saveLang(lang);
+    setDeviceName((prev) => {
+      if (prev === "Iran phone" || prev === "گوشی ایران" || !prev) {
+        return lang === "fa" ? "گوشی ایران" : "Iran phone";
+      }
+      return prev;
+    });
+  }, [lang]);
 
   async function refresh() {
     const me = await api.me();
@@ -60,10 +82,8 @@ export default function App() {
     try {
       const res = await api.requestOtp(email);
       setOtpSent(true);
-      // Never surface real OTP codes in production builds.
       if (import.meta.env.DEV) setDebugCode(res.debugCode ?? null);
-      if (sample) setOtpHint("Sample mode: enter 000000");
-      else setOtpHint(res.detail || "Check your email for the code.");
+      setOtpHint(sample ? tr("sampleOtpHint") : res.detail || "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     } finally {
@@ -89,7 +109,7 @@ export default function App() {
       const e2 = err as Error & { needAdminPassword?: boolean };
       if (e2.needAdminPassword) {
         setNeedAdminPassword(true);
-        setError("Enter admin password from the API server env");
+        setError(tr("adminPassHint"));
       } else {
         setError(e2.message);
       }
@@ -106,35 +126,67 @@ export default function App() {
     setCode("");
   }
 
+  function LangSwitch() {
+    return (
+      <div className="lang-switch">
+        <button
+          type="button"
+          className={`lang-btn ${lang === "fa" ? "active" : ""}`}
+          onClick={() => setLang("fa")}
+        >
+          {tr("langFa")}
+        </button>
+        <button
+          type="button"
+          className={`lang-btn ${lang === "en" ? "active" : ""}`}
+          onClick={() => setLang("en")}
+        >
+          {tr("langEn")}
+        </button>
+      </div>
+    );
+  }
+
   const tabs = useMemo(() => {
-    const t: Tab[] = ["inbox", "device", "settings"];
-    if (canSend) t.splice(1, 0, "send");
-    if (isAdmin) t.push("admin");
-    return t;
+    const list: { id: Tab; label: MsgKey }[] = [
+      { id: "inbox", label: "inbox" },
+      { id: "device", label: "device" },
+      { id: "settings", label: "settings" },
+    ];
+    if (canSend) list.splice(1, 0, { id: "send", label: "send" });
+    if (isAdmin) list.push({ id: "admin", label: "admin" });
+    return list;
   }, [canSend, isAdmin]);
 
   if (!token || !user) {
     return (
       <div className="app-shell">
-        <header style={{ marginBottom: "1.25rem" }}>
-          <p className="brand">FieldSense</p>
-          <p className="muted">Iran SIM relay — receive OTPs abroad, send SMS through your home phone.</p>
+        <header className="hero-gate">
+          <LangSwitch />
+          <div className="hero-inner">
+            <p className="brand-en">{lang === "fa" ? "DARVAZEH" : "دروازه"}</p>
+            <h1 className="brand">{tr("brand")}</h1>
+            <p className="tagline">{tr("tagline")}</p>
+          </div>
         </header>
-        <section className="card" style={{ maxWidth: 460 }}>
-          <h2 style={{ marginTop: 0 }}>Email login</h2>
+
+        <section className="card" style={{ maxWidth: 480, marginInline: "auto" }}>
+          <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)", fontSize: "1.55rem" }}>
+            {tr("loginTitle")}
+          </h2>
           {sample ? (
-            <p className="muted">
-              Running on <strong>sample data</strong> — no public API URL is configured yet.
-              Add app secret <span className="mono">FIELDSENSE_API_BASE</span> (your ASP.NET URL)
-              for real ACS email OTP.
-            </p>
+            <>
+              <span className="sample-chip">{tr("sampleMode")}</span>
+              <p className="muted">{tr("sampleBanner")}</p>
+            </>
           ) : (
-            <p className="muted">We email a one-time code via Azure Communication Services.</p>
+            <p className="muted">{tr("loginAcs")}</p>
           )}
+
           {!otpSent ? (
             <form onSubmit={onRequestOtp}>
               <div className="field">
-                <label htmlFor="email">Email</label>
+                <label htmlFor="email">{tr("email")}</label>
                 <input
                   id="email"
                   type="email"
@@ -143,87 +195,98 @@ export default function App() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   autoComplete="email"
+                  dir="ltr"
                 />
               </div>
               <div className="row" style={{ marginTop: "1rem" }}>
                 <button className="btn" disabled={busy} type="submit">
-                  Send code
+                  {tr("sendCode")}
                 </button>
               </div>
             </form>
           ) : (
             <form onSubmit={onVerify}>
               <div className="field">
-                <label htmlFor="code">One-time code</label>
+                <label htmlFor="code">{tr("otpLabel")}</label>
                 <input
                   id="code"
                   inputMode="numeric"
                   required
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="6-digit code"
+                  placeholder={tr("otpPlaceholder")}
+                  dir="ltr"
                 />
               </div>
               {needAdminPassword && (
                 <div className="field">
-                  <label htmlFor="adminPass">Admin password</label>
+                  <label htmlFor="adminPass">{tr("adminPass")}</label>
                   <input
                     id="adminPass"
                     type="password"
                     required
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="From server FieldSense__AdminPassword"
+                    placeholder={tr("adminPassHint")}
+                    dir="ltr"
                   />
                 </div>
               )}
               {import.meta.env.DEV && debugCode && (
-                <p className="mono muted">Dev mock code: {debugCode}</p>
+                <p className="mono muted">Dev: {debugCode}</p>
               )}
               {otpHint && <p className="muted">{otpHint}</p>}
               <div className="row" style={{ marginTop: "1rem" }}>
                 <button className="btn" disabled={busy} type="submit">
-                  Sign in
+                  {tr("signIn")}
                 </button>
                 <button className="btn ghost" type="button" onClick={() => setOtpSent(false)}>
-                  Back
+                  {tr("back")}
                 </button>
               </div>
             </form>
           )}
           {error && <div className="error">{error}</div>}
           <p className="muted" style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
-            API: <span className="mono">{API_BASE || "(sample mode)"}</span>
+            {tr("api")}:{" "}
+            <span className="mono" dir="ltr">
+              {API_BASE || tr("sampleMode")}
+            </span>
           </p>
         </section>
       </div>
     );
   }
 
+  const roleLabel = user.role === "Admin" ? tr("roleAdmin") : tr("roleUser");
+
   return (
     <div className="app-shell">
-      <header className="row" style={{ justifyContent: "space-between", marginBottom: "0.5rem" }}>
-        <div>
-          <p className="brand" style={{ fontSize: "1.8rem" }}>FieldSense</p>
-          <p className="muted" style={{ margin: 0 }}>
-            {user.email} · {user.role}
-            {canSend ? " · relay on" : ""}
-          </p>
+      <header className="hero-gate" style={{ paddingBottom: "1.1rem" }}>
+        <LangSwitch />
+        <div className="app-top" style={{ position: "relative", zIndex: 1 }}>
+          <div>
+            <p className="brand-sm">{tr("brand")}</p>
+            <p className="muted" style={{ margin: "0.2rem 0 0", color: "rgba(243,240,230,0.85)" }}>
+              {user.email} · {roleLabel}
+              {canSend ? ` · ${tr("relayOn")}` : ""}
+            </p>
+          </div>
+          <button className="btn ghost" onClick={logout} style={{ color: "var(--ivory)", borderColor: "rgba(243,240,230,0.35)" }}>
+            {tr("signOut")}
+          </button>
         </div>
-        <button className="btn ghost" onClick={logout}>
-          Sign out
-        </button>
       </header>
 
       <nav className="tabs">
-        {tabs.map((t) => (
+        {tabs.map((item) => (
           <button
-            key={t}
-            className={`tab ${tab === t ? "active" : ""}`}
-            onClick={() => setTab(t)}
+            key={item.id}
+            className={`tab ${tab === item.id ? "active" : ""}`}
+            onClick={() => setTab(item.id)}
             type="button"
           >
-            {t}
+            {tr(item.label)}
           </button>
         ))}
       </nav>
@@ -233,28 +296,34 @@ export default function App() {
       {tab === "inbox" && (
         <section className="card">
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0 }}>Inbox</h2>
-            <button className="btn secondary" type="button" onClick={() => refresh().catch((e) => setError(e.message))}>
-              Refresh
+            <h2 style={{ margin: 0, fontFamily: "var(--font-display)" }}>{tr("inbox")}</h2>
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => refresh().catch((e) => setError(e.message))}
+            >
+              {tr("refresh")}
             </button>
           </div>
-          <p className="muted">SMS arriving on your Iran phone appear here.</p>
-          {messages.length === 0 && <p className="muted">No messages yet.</p>}
+          <p className="muted">{tr("inboxLead")}</p>
+          {messages.length === 0 && <p className="muted">{tr("noMessages")}</p>}
           {messages.map((m) => (
             <article key={m.id} className="msg">
               <div className="row">
                 <span className={`badge ${m.direction === "inbound" ? "in" : "out"}`}>
                   {m.direction}
                 </span>
-                <strong className="mono">{m.peerNumber}</strong>
-                <span className="muted mono" style={{ fontSize: "0.8rem" }}>
-                  {new Date(m.createdAt).toLocaleString()}
+                <strong className="mono" dir="ltr">
+                  {m.peerNumber}
+                </strong>
+                <span className="muted mono" style={{ fontSize: "0.8rem" }} dir="ltr">
+                  {new Date(m.createdAt).toLocaleString(lang === "fa" ? "fa-IR" : "en-NZ")}
                 </span>
               </div>
               <p style={{ margin: "0.45rem 0 0", whiteSpace: "pre-wrap" }}>{m.body}</p>
               <p className="muted mono" style={{ fontSize: "0.75rem", margin: "0.35rem 0 0" }}>
                 {m.status}
-                {m.emailForwarded ? " · emailed" : ""}
+                {m.emailForwarded ? ` · ${tr("emailed")}` : ""}
               </p>
             </article>
           ))}
@@ -263,10 +332,8 @@ export default function App() {
 
       {tab === "send" && (
         <section className="card">
-          <h2 style={{ marginTop: 0 }}>Send via Iran phone</h2>
-          <p className="muted">
-            Message is queued to your paired device. The phone must be online in Iran.
-          </p>
+          <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>{tr("sendTitle")}</h2>
+          <p className="muted">{tr("sendLead")}</p>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -285,27 +352,27 @@ export default function App() {
             }}
           >
             <div className="field">
-              <label htmlFor="to">To number</label>
+              <label htmlFor="to">{tr("toNumber")}</label>
               <input
                 id="to"
                 required
                 value={toNumber}
                 onChange={(e) => setToNumber(e.target.value)}
                 placeholder="+98912…"
+                dir="ltr"
               />
             </div>
             <div className="field">
-              <label htmlFor="body">Message</label>
+              <label htmlFor="body">{tr("message")}</label>
               <textarea
                 id="body"
                 required
                 value={smsBody}
                 onChange={(e) => setSmsBody(e.target.value)}
-                placeholder="Type SMS text"
               />
             </div>
             <button className="btn" disabled={busy} type="submit" style={{ marginTop: "1rem" }}>
-              Queue SMS
+              {tr("queueSms")}
             </button>
           </form>
         </section>
@@ -313,17 +380,20 @@ export default function App() {
 
       {tab === "device" && (
         <section className="card">
-          <h2 style={{ marginTop: 0 }}>Pair Iran Android phone</h2>
-          <p className="muted">
-            Create a device token, paste it into the FieldSense Android app on the phone with the SIM.
-          </p>
+          <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>{tr("deviceTitle")}</h2>
+          <p className="muted">{tr("deviceLead")}</p>
           <div className="field">
-            <label>Device name</label>
+            <label>{tr("deviceName")}</label>
             <input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
           </div>
           <div className="field">
-            <label>SIM number (optional)</label>
-            <input value={devicePhone} onChange={(e) => setDevicePhone(e.target.value)} placeholder="+98…" />
+            <label>{tr("simOptional")}</label>
+            <input
+              value={devicePhone}
+              onChange={(e) => setDevicePhone(e.target.value)}
+              placeholder="+98…"
+              dir="ltr"
+            />
           </div>
           <button
             className="btn"
@@ -343,16 +413,16 @@ export default function App() {
               }
             }}
           >
-            Generate device token
+            {tr("generateToken")}
           </button>
           {pairedToken && (
             <div style={{ marginTop: "1rem" }}>
-              <p className="muted">Copy into Android app → Device token</p>
-              <p className="mono" style={{ wordBreak: "break-all", background: "var(--wash)", padding: "0.85rem", borderRadius: "0.9rem" }}>
+              <p className="muted">{tr("copyToken")}</p>
+              <p className="mono token-box" dir="ltr">
                 {pairedToken}
               </p>
-              <p className="muted mono" style={{ fontSize: "0.8rem" }}>
-                API base for Android: {API_BASE}
+              <p className="muted mono" style={{ fontSize: "0.8rem" }} dir="ltr">
+                {tr("androidApi")}: {API_BASE || tr("sampleMode")}
               </p>
             </div>
           )}
@@ -361,15 +431,23 @@ export default function App() {
 
       {tab === "settings" && (
         <section className="card">
-          <h2 style={{ marginTop: 0 }}>Email forward</h2>
-          <p className="muted">Also send inbound SMS copies to email via ACS.</p>
+          <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>{tr("settingsTitle")}</h2>
+          <p className="muted">{tr("settingsLead")}</p>
           <label className="switch">
-            <input type="checkbox" checked={forwardOn} onChange={(e) => setForwardOn(e.target.checked)} />
-            Forward inbound SMS to email
+            <input
+              type="checkbox"
+              checked={forwardOn}
+              onChange={(e) => setForwardOn(e.target.checked)}
+            />
+            {tr("forwardToggle")}
           </label>
           <div className="field">
-            <label>Forward address</label>
-            <input value={forwardEmail} onChange={(e) => setForwardEmail(e.target.value)} />
+            <label>{tr("forwardAddress")}</label>
+            <input
+              value={forwardEmail}
+              onChange={(e) => setForwardEmail(e.target.value)}
+              dir="ltr"
+            />
           </div>
           <button
             className="btn"
@@ -387,21 +465,21 @@ export default function App() {
               }
             }}
           >
-            Save settings
+            {tr("saveSettings")}
           </button>
         </section>
       )}
 
       {tab === "admin" && isAdmin && (
         <section className="card">
-          <h2 style={{ marginTop: 0 }}>Admin · relay grants</h2>
-          <p className="muted">Allow users to send SMS through their paired Iran phone.</p>
+          <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>{tr("adminTitle")}</h2>
+          <p className="muted">{tr("adminLead")}</p>
           {adminUsers.map((u) => (
             <div key={u.id} className="msg row" style={{ justifyContent: "space-between" }}>
               <div>
-                <strong>{u.email}</strong>
+                <strong dir="ltr">{u.email}</strong>
                 <div className="muted mono" style={{ fontSize: "0.8rem" }}>
-                  {u.role} · devices {u.deviceCount} · relay {u.canRelaySms ? "on" : "off"}
+                  {u.role} · {u.deviceCount} · {u.canRelaySms ? tr("relayOn") : "—"}
                 </div>
               </div>
               <button
@@ -412,7 +490,7 @@ export default function App() {
                   setAdminUsers(await api.adminUsers());
                 }}
               >
-                {u.canRelaySms ? "Revoke relay" : "Grant relay"}
+                {u.canRelaySms ? tr("revokeRelay") : tr("grantRelay")}
               </button>
             </div>
           ))}
