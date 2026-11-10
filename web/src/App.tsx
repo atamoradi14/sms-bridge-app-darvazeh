@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { api, API_BASE, type Message, type User } from "./api";
+import { api, API_BASE, usesSampleData, type Message, type User } from "./api";
 
 type Tab = "inbox" | "send" | "device" | "settings" | "admin";
 
 export default function App() {
-  const [token, setToken] = useState(() => localStorage.getItem("fs_token"));
+  const [token, setToken] = useState(() => api.getToken());
   const [user, setUser] = useState<(User & { devices?: unknown }) | null>(null);
   const [tab, setTab] = useState<Tab>("inbox");
   const [email, setEmail] = useState("");
@@ -13,7 +13,9 @@ export default function App() {
   const [needAdminPassword, setNeedAdminPassword] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [debugCode, setDebugCode] = useState<string | null>(null);
+  const [otpHint, setOtpHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const sample = usesSampleData();
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [toNumber, setToNumber] = useState("");
@@ -53,10 +55,15 @@ export default function App() {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setDebugCode(null);
+    setOtpHint(null);
     try {
       const res = await api.requestOtp(email);
       setOtpSent(true);
-      setDebugCode(res.debugCode ?? null);
+      // Never surface real OTP codes in production builds.
+      if (import.meta.env.DEV) setDebugCode(res.debugCode ?? null);
+      if (sample) setOtpHint("Sample mode: enter 000000");
+      else setOtpHint(res.detail || "Check your email for the code.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     } finally {
@@ -74,7 +81,7 @@ export default function App() {
         code,
         needAdminPassword ? adminPassword : undefined,
       );
-      localStorage.setItem("fs_token", res.token);
+      api.setToken(res.token);
       setToken(res.token);
       setUser(res.user);
       setNeedAdminPassword(false);
@@ -82,7 +89,7 @@ export default function App() {
       const e2 = err as Error & { needAdminPassword?: boolean };
       if (e2.needAdminPassword) {
         setNeedAdminPassword(true);
-        setError("Enter admin password from server .env");
+        setError("Enter admin password from the API server env");
       } else {
         setError(e2.message);
       }
@@ -92,7 +99,7 @@ export default function App() {
   }
 
   function logout() {
-    localStorage.removeItem("fs_token");
+    api.setToken(null);
     setToken(null);
     setUser(null);
     setOtpSent(false);
@@ -115,7 +122,15 @@ export default function App() {
         </header>
         <section className="card" style={{ maxWidth: 460 }}>
           <h2 style={{ marginTop: 0 }}>Email login</h2>
-          <p className="muted">We email a one-time code via Azure Communication Services.</p>
+          {sample ? (
+            <p className="muted">
+              Running on <strong>sample data</strong> — no public API URL is configured yet.
+              Add app secret <span className="mono">FIELDSENSE_API_BASE</span> (your ASP.NET URL)
+              for real ACS email OTP.
+            </p>
+          ) : (
+            <p className="muted">We email a one-time code via Azure Communication Services.</p>
+          )}
           {!otpSent ? (
             <form onSubmit={onRequestOtp}>
               <div className="field">
@@ -162,9 +177,10 @@ export default function App() {
                   />
                 </div>
               )}
-              {debugCode && (
+              {import.meta.env.DEV && debugCode && (
                 <p className="mono muted">Dev mock code: {debugCode}</p>
               )}
+              {otpHint && <p className="muted">{otpHint}</p>}
               <div className="row" style={{ marginTop: "1rem" }}>
                 <button className="btn" disabled={busy} type="submit">
                   Sign in
@@ -177,7 +193,7 @@ export default function App() {
           )}
           {error && <div className="error">{error}</div>}
           <p className="muted" style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
-            API: <span className="mono">{API_BASE}</span>
+            API: <span className="mono">{API_BASE || "(sample mode)"}</span>
           </p>
         </section>
       </div>
