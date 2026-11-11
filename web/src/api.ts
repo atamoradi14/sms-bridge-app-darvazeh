@@ -51,6 +51,9 @@ export type Device = {
   id: string;
   name: string;
   phoneNumber?: string | null;
+  lastIpAddress?: string | null;
+  platform?: string | null;
+  appVersion?: string | null;
   isOnline: boolean;
   lastSeenAt?: string | null;
 };
@@ -189,6 +192,9 @@ async function sampleApi<T>(path: string, init?: RequestInit): Promise<T> {
           id: "install-" + installId,
           name: body.deviceName || "Iran phone",
           phoneNumber: body.phoneNumber || null,
+          lastIpAddress: "sample-local",
+          platform: body.platform || "android",
+          appVersion: body.appVersion || "2.0.0",
           isOnline: true,
           lastSeenAt: new Date().toISOString(),
         };

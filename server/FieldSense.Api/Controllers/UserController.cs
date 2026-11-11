@@ -39,6 +39,9 @@ public class UserController(AppDbContext db) : ControllerBase
                 d.Id,
                 d.Name,
                 d.PhoneNumber,
+                d.LastIpAddress,
+                d.Platform,
+                d.AppVersion,
                 d.IsOnline,
                 d.LastSeenAt
             })

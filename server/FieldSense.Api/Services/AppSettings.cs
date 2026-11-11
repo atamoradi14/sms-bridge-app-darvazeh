@@ -8,5 +8,8 @@ public class AppSettings
     public string AcsConnectionString { get; set; } = "";
     public string AcsSenderAddress { get; set; } = "DoNotReply@ndorbit.co.nz";
     public bool AcsMock { get; set; } = true;
-    public string CorsOrigin { get; set; } = "http://127.0.0.1:43123,http://localhost:43123";
+    public string CorsOrigin { get; set; } =
+        "http://127.0.0.1:43123,http://localhost:43123,https://atamoradi14.github.io,https://fieldsense-relay.apps.grok.bot";
+    /// <summary>Optional public API base advertised to mobile apps via /api/public/mobile-config.</summary>
+    public string PublicApiBase { get; set; } = "";
 }

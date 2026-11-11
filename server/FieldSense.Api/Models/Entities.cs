@@ -30,6 +30,9 @@ public class Device
     public string? InstallationId { get; set; }
     public string DeviceToken { get; set; } = "";
     public string? PhoneNumber { get; set; }
+    public string? LastIpAddress { get; set; }
+    public string? Platform { get; set; }
+    public string? AppVersion { get; set; }
     public bool IsOnline { get; set; }
     public DateTime? LastSeenAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

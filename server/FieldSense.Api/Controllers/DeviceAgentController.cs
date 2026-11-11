@@ -29,8 +29,17 @@ public class DeviceAgentController(AppDbContext db, EmailOtpService emailOtp) : 
         if (device == null) return Unauthorized(new { error = "Invalid device token" });
         device.IsOnline = true;
         device.LastSeenAt = DateTime.UtcNow;
+        var forwarded = Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        device.LastIpAddress = !string.IsNullOrWhiteSpace(forwarded)
+            ? forwarded.Split(',')[0].Trim()
+            : HttpContext.Connection.RemoteIpAddress?.ToString();
         await db.SaveChangesAsync();
-        return Ok(new { ok = true, serverTime = DateTime.UtcNow });
+        return Ok(new
+        {
+            ok = true,
+            serverTime = DateTime.UtcNow,
+            apiBase = $"{Request.Scheme}://{Request.Host.Value}".TrimEnd('/')
+        });
     }
 
     [HttpPost("inbound-sms")]

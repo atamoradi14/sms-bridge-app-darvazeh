@@ -16,7 +16,9 @@ public record VerifyOtpDto(
     string? Client = null,
     string? InstallationId = null,
     string? DeviceName = null,
-    string? PhoneNumber = null);
+    string? PhoneNumber = null,
+    string? Platform = null,
+    string? AppVersion = null);
 
 [ApiController]
 [Route("api/auth")]
@@ -89,6 +91,9 @@ public class AuthController(
                 device.Name,
                 device.DeviceToken,
                 device.PhoneNumber,
+                device.LastIpAddress,
+                device.Platform,
+                device.AppVersion,
                 device.IsOnline,
                 device.LastSeenAt
             };
@@ -115,12 +120,23 @@ public class AuthController(
         Convert.ToBase64String(Guid.NewGuid().ToByteArray())
             .Replace("/", "_").Replace("+", "-").TrimEnd('=');
 
+    private string? ClientIp()
+    {
+        var forwarded = Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(forwarded))
+            return forwarded.Split(',')[0].Trim();
+        return HttpContext.Connection.RemoteIpAddress?.ToString();
+    }
+
     private async Task<Device> UpsertPhoneDeviceAsync(Guid userId, VerifyOtpDto dto)
     {
         var installId = string.IsNullOrWhiteSpace(dto.InstallationId)
             ? null
             : dto.InstallationId.Trim();
         var name = string.IsNullOrWhiteSpace(dto.DeviceName) ? "Iran phone" : dto.DeviceName.Trim();
+        var ip = ClientIp();
+        var platform = string.IsNullOrWhiteSpace(dto.Platform) ? "android" : dto.Platform.Trim();
+        var appVersion = string.IsNullOrWhiteSpace(dto.AppVersion) ? null : dto.AppVersion.Trim();
 
         Device? device = null;
         if (!string.IsNullOrEmpty(installId))
@@ -147,6 +163,9 @@ public class AuthController(
                 InstallationId = installId,
                 PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim(),
                 DeviceToken = NewDeviceToken(),
+                LastIpAddress = ip,
+                Platform = platform,
+                AppVersion = appVersion,
                 IsOnline = true,
                 LastSeenAt = DateTime.UtcNow
             };
@@ -160,6 +179,9 @@ public class AuthController(
                 device.InstallationId = installId;
             if (!string.IsNullOrWhiteSpace(dto.PhoneNumber))
                 device.PhoneNumber = dto.PhoneNumber.Trim();
+            device.LastIpAddress = ip;
+            device.Platform = platform;
+            if (appVersion != null) device.AppVersion = appVersion;
             device.IsOnline = true;
             device.LastSeenAt = DateTime.UtcNow;
         }

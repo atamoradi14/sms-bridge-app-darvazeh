@@ -1,3 +1,3 @@
-// Overridden at deploy time via ConfigMap mount in Kubernetes.
-// Empty string = same origin (Ingress routes /api → API).
-window.__FIELDSENSE_API_BASE__ = window.__FIELDSENSE_API_BASE__ || "";
+// Runtime API base for the published web app (override without rebuilding JS).
+// Keep empty for sample mode. Set to your public ASP.NET API for live OTP + device link.
+window.__FIELDSENSE_API_BASE__ = window.__FIELDSENSE_API_BASE__ || "https://proper-observe-surrounded-wan.trycloudflare.com";

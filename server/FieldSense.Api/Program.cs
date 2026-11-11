@@ -3,6 +3,7 @@ using FieldSense.Api.Data;
 using FieldSense.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -81,14 +82,16 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
     // Lightweight SQLite column add for existing DBs (EnsureCreated does not migrate).
-    try
+    foreach (var sql in new[]
+             {
+                 "ALTER TABLE Devices ADD COLUMN InstallationId TEXT NULL",
+                 "ALTER TABLE Devices ADD COLUMN LastIpAddress TEXT NULL",
+                 "ALTER TABLE Devices ADD COLUMN Platform TEXT NULL",
+                 "ALTER TABLE Devices ADD COLUMN AppVersion TEXT NULL"
+             })
     {
-        db.Database.ExecuteSqlRaw(
-            "ALTER TABLE Devices ADD COLUMN InstallationId TEXT NULL");
-    }
-    catch
-    {
-        // column already exists
+        try { db.Database.ExecuteSqlRaw(sql); }
+        catch { /* column already exists */ }
     }
 }
 
@@ -99,5 +102,18 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { ok = true, service = "FieldSense.Api" }));
+app.MapGet("/api/public/mobile-config", (IOptions<AppSettings> opt, HttpRequest req) =>
+{
+    var configured = (opt.Value.PublicApiBase ?? "").Trim().TrimEnd('/');
+    var proto = req.Headers["X-Forwarded-Proto"].FirstOrDefault() ?? req.Scheme;
+    var host = req.Headers["X-Forwarded-Host"].FirstOrDefault() ?? req.Host.Value;
+    var fallback = $"{proto}://{host}".TrimEnd('/');
+    return Results.Ok(new
+    {
+        apiBase = string.IsNullOrEmpty(configured) ? fallback : configured,
+        brand = "Darvazeh",
+        updatedAt = DateTime.UtcNow
+    });
+});
 
 app.Run();

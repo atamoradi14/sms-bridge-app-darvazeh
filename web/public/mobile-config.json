@@ -1,0 +1,6 @@
+{
+  "apiBase": "https://proper-observe-surrounded-wan.trycloudflare.com",
+  "brand": "Darvazeh",
+  "note": "Temporary test tunnel to local FieldSense API. Replace with your stable public API URL anytime — Android picks this up without a new APK.",
+  "updatedAt": "2026-11-11T01:00:00Z"
+}

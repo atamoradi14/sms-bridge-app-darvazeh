@@ -409,11 +409,28 @@ export default function App() {
                   <span className={`badge ${d.isOnline ? "in" : "out"}`}>
                     {d.isOnline ? tr("deviceOnline") : tr("deviceOffline")}
                   </span>
-                  {d.phoneNumber ? (
-                    <span className="mono" dir="ltr" style={{ marginInlineStart: "0.5rem" }}>
-                      {tr("simLabel")}: {d.phoneNumber}
-                    </span>
-                  ) : null}
+                  <div style={{ marginTop: "0.35rem" }}>
+                    {d.phoneNumber ? (
+                      <span className="mono" dir="ltr" style={{ marginInlineEnd: "0.75rem" }}>
+                        {tr("simLabel")}: {d.phoneNumber}
+                      </span>
+                    ) : null}
+                    {d.lastIpAddress ? (
+                      <span className="mono" dir="ltr" style={{ marginInlineEnd: "0.75rem" }}>
+                        {tr("ipLabel")}: {d.lastIpAddress}
+                      </span>
+                    ) : null}
+                    {d.platform ? (
+                      <span className="mono" dir="ltr" style={{ marginInlineEnd: "0.75rem" }}>
+                        {tr("platformLabel")}: {d.platform}
+                      </span>
+                    ) : null}
+                    {d.appVersion ? (
+                      <span className="mono" dir="ltr">
+                        {tr("versionLabel")}: {d.appVersion}
+                      </span>
+                    ) : null}
+                  </div>
                   {d.lastSeenAt ? (
                     <div className="mono" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }} dir="ltr">
                       {tr("lastSeen")}:{" "}

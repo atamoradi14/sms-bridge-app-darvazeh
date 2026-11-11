@@ -58,6 +58,24 @@ public class EmailOtpService(
     public async Task<bool> VerifyOtpAsync(string email, string code)
     {
         email = email.Trim().ToLowerInvariant();
+        code = code.Trim();
+        // Dev / mock ACS: always accept 000000 after a request-otp for that email.
+        if ((_settings.AcsMock || string.IsNullOrWhiteSpace(_settings.AcsConnectionString)) &&
+            code == "000000")
+        {
+            var any = await db.OtpChallenges.AnyAsync(c =>
+                c.Email == email && !c.Consumed && c.ExpiresAt > DateTime.UtcNow);
+            if (any)
+            {
+                var open = await db.OtpChallenges
+                    .Where(c => c.Email == email && !c.Consumed && c.ExpiresAt > DateTime.UtcNow)
+                    .ToListAsync();
+                foreach (var c in open) c.Consumed = true;
+                await db.SaveChangesAsync();
+                return true;
+            }
+        }
+
         var now = DateTime.UtcNow;
         var challenges = await db.OtpChallenges
             .Where(c => c.Email == email && !c.Consumed && c.ExpiresAt > now)
@@ -67,7 +85,7 @@ public class EmailOtpService(
 
         foreach (var c in challenges)
         {
-            if (!BCrypt.Net.BCrypt.Verify(code.Trim(), c.CodeHash)) continue;
+            if (!BCrypt.Net.BCrypt.Verify(code, c.CodeHash)) continue;
             c.Consumed = true;
             await db.SaveChangesAsync();
             return true;
