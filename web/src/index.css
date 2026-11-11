@@ -191,6 +191,18 @@ body {
   min-height: 48px;
   transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
   box-shadow: 0 8px 20px rgba(15, 92, 76, 0.28);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.apk-panel {
+  margin: 1rem 0 1.25rem;
+  padding: 1rem 1.05rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(15, 92, 76, 0.06);
 }
 .btn:hover:not(:disabled) { filter: brightness(1.05); transform: translateY(-1px); }
 .btn:active:not(:disabled) { transform: translateY(0); }

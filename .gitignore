@@ -61,6 +61,7 @@ next-env.d.ts
 /dist/
 # Keep the published debug APK downloadable from the repo / public URL
 !/public/FieldSense-SMS-debug.apk
+!/web/public/Darvazeh-SMS.apk
 /android-companion/*.apk
 /android-companion/android/app/build/
 

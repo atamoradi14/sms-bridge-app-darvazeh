@@ -35,7 +35,11 @@ const dict = {
     deviceTitle: "گوشی ایران",
     deviceLead:
       "اپ دروازه را روی گوشی دارای سیم در ایران نصب کنید و با همان ایمیل وارد شوید. اتصال به‌صورت خودکار برقرار می‌شود.",
-    noDevices: "هنوز گوشی‌ای وصل نشده. با همان ایمیل در اپ اندروید وارد شوید.",
+    connectPhone: "اتصال گوشی",
+    downloadApk: "دانلود اپ اندروید (APK)",
+    downloadApkHint:
+      "روی گوشی ایران نصب کنید، سپس با همان ایمیل این حساب وارد شوید. توکن لازم نیست.",
+    noDevices: "هنوز گوشی‌ای وصل نشده. اپ را نصب کنید و با همان ایمیل وارد شوید.",
     deviceOnline: "آنلاین",
     deviceOffline: "آفلاین",
     lastSeen: "آخرین بازدید",
@@ -92,7 +96,11 @@ const dict = {
     deviceTitle: "Iran phone",
     deviceLead:
       "Install the Darvazeh app on the SIM phone in Iran and sign in with the same email. Linking happens automatically.",
-    noDevices: "No phone linked yet. Sign in on the Android app with the same email.",
+    connectPhone: "Connect your phone",
+    downloadApk: "Download Android app (APK)",
+    downloadApkHint:
+      "Install on the Iran SIM phone, then sign in with the same email as this account. No token paste needed.",
+    noDevices: "No phone linked yet. Install the app and sign in with the same email.",
     deviceOnline: "Online",
     deviceOffline: "Offline",
     lastSeen: "Last seen",

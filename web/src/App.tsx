@@ -383,6 +383,23 @@ export default function App() {
             </button>
           </div>
           <p className="muted">{tr("deviceLead")}</p>
+
+          <div className="apk-panel">
+            <h3 style={{ margin: "0 0 0.35rem", fontFamily: "var(--font-display)", fontSize: "1.15rem" }}>
+              {tr("connectPhone")}
+            </h3>
+            <p className="muted" style={{ marginTop: 0 }}>
+              {tr("downloadApkHint")}
+            </p>
+            <a
+              className="btn"
+              href={`${import.meta.env.BASE_URL}Darvazeh-SMS.apk`}
+              download="Darvazeh-SMS.apk"
+            >
+              {tr("downloadApk")}
+            </a>
+          </div>
+
           {devices.length === 0 && <p className="muted">{tr("noDevices")}</p>}
           {devices.map((d) => (
             <article key={d.id} className="msg row" style={{ justifyContent: "space-between" }}>
