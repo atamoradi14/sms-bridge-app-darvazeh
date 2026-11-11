@@ -74,7 +74,10 @@ export default function App() {
       const res = await api.requestOtp(email);
       setOtpSent(true);
       if (import.meta.env.DEV) setDebugCode(res.debugCode ?? null);
-      setOtpHint(sample ? tr("sampleOtpHint") : res.detail || "");
+      const detail = res.detail || "";
+      const mockHint =
+        /000000|mock/i.test(detail) || sample ? tr("sampleOtpHint") : detail;
+      setOtpHint(mockHint || detail);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     } finally {

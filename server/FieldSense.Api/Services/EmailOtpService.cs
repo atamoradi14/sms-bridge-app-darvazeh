@@ -35,7 +35,7 @@ public class EmailOtpService(
         if (_settings.AcsMock || string.IsNullOrWhiteSpace(_settings.AcsConnectionString))
         {
             logger.LogWarning("ACS mock OTP for {Email}: {Code}", email, code);
-            return (true, "OTP sent (mock — check server logs)", code);
+            return (true, "Mock OTP — enter 000000 (email sending is not configured yet)", code);
         }
 
         try
