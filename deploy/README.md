@@ -1,4 +1,4 @@
-# FieldSense deploy (Docker + Kubernetes)
+# دروازه ها باز است — deploy (Docker + Kubernetes)
 
 Namespace: **`sms-forwarder`**
 

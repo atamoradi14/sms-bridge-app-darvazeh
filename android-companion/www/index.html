@@ -146,7 +146,6 @@
             <circle cx="32" cy="24" r="2.4" fill="#b8923a"/>
           </svg>
         </div>
-        <p class="brand-en">DARVAZEH</p>
         <h1>دروازه</h1>
         <p class="tagline">سیم در ایران — صندوق در هر کجا</p>
       </header>
@@ -181,7 +180,7 @@
           </div>
           <div class="switch-row">
             <input id="enabled" type="checkbox" />
-            <label for="enabled">رله پیامک روشن</label>
+            <label for="enabled">دروازه ها برای پیامک باز است</label>
           </div>
           <div class="actions">
             <button id="save" class="btn-primary" type="button">ذخیره</button>
@@ -264,7 +263,9 @@
         if (linked) {
           linkedEmail.textContent = settings.email;
           enabled.checked = !!settings.enabled;
-          linkPill.textContent = settings.enabled ? "رله فعال" : "وصل · رله خاموش";
+          linkPill.textContent = settings.enabled
+            ? "دروازه ها برای پیامک باز است"
+            : "دروازه ها برای پیامک بسته است";
         }
       }
 
@@ -431,7 +432,9 @@
         s.enabled = enabled.checked;
         s.apiBase = resolvedApiBase;
         persist(s);
-        setStatus(s.enabled ? "رله ذخیره شد" : "ذخیره شد · رله خاموش");
+        setStatus(s.enabled
+          ? "دروازه ها برای پیامک باز است"
+          : "دروازه ها برای پیامک بسته است");
       });
       test.addEventListener("click", () => {
         const s = load();

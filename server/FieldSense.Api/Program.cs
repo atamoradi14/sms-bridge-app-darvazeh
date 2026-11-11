@@ -45,7 +45,7 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "FieldSense API", Version = "v2" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "دروازه API", Version = "v2" });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -102,7 +102,7 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok(new { ok = true, service = "FieldSense.Api" }));
+app.MapGet("/health", () => Results.Ok(new { ok = true, service = "darvazeh-api", brand = "دروازه" }));
 app.MapGet("/api/public/mobile-config", (IOptions<AppSettings> opt, HttpRequest req) =>
 {
     var configured = (opt.Value.PublicApiBase ?? "").Trim().TrimEnd('/');
@@ -112,7 +112,7 @@ app.MapGet("/api/public/mobile-config", (IOptions<AppSettings> opt, HttpRequest 
     return Results.Ok(new
     {
         apiBase = string.IsNullOrEmpty(configured) ? fallback : configured,
-        brand = "Darvazeh",
+        brand = "دروازه",
         updatedAt = DateTime.UtcNow
     });
 });

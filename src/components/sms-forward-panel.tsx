@@ -74,7 +74,7 @@ export function SmsForwardPanel() {
             </Badge>
           </div>
           <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--ink-muted)]">
-            Browsers cannot read the SMS inbox. On Android, install the FieldSense companion app
+            Browsers cannot read the SMS inbox. On Android, install the «دروازه» companion app
             (Capacitor) so real SMS triggers Gmail compose and an optional authenticated API push.
             Here you configure destinations and simulate a message.
           </p>

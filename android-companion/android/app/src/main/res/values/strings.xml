@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Darvazeh</string>
-    <string name="title_activity_main">Darvazeh</string>
+    <string name="app_name">دروازه</string>
+    <string name="title_activity_main">دروازه</string>
     <string name="package_name">com.fieldsense.smsforward</string>
     <string name="custom_url_scheme">com.fieldsense.smsforward</string>
 </resources>

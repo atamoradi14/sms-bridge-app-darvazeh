@@ -9,7 +9,7 @@ const PAGE_SIZE = 8;
 function applyDocumentLang(lang: Lang) {
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
-  document.title = lang === "fa" ? "دروازه" : "Darvazeh";
+  document.title = "دروازه";
 }
 
 /** Prefer readable IPv4 when present; otherwise keep a wrapped IPv6. */
@@ -183,7 +183,6 @@ export default function App() {
         <header className="hero-gate">
           <LangSwitch />
           <div className="hero-inner">
-            <p className="brand-en">{lang === "fa" ? "DARVAZEH" : "دروازه"}</p>
             <h1 className="brand">{tr("brand")}</h1>
             <p className="tagline">{tr("tagline")}</p>
           </div>

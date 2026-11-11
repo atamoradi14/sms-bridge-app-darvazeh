@@ -29,9 +29,10 @@ import java.util.Locale;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 /**
- * Device agent for FieldSense API:
+ * Device agent for دروازه API:
  * - uploads inbound SMS
  * - heartbeats
  * - polls outbound jobs and sends SMS via Android SmsManager
@@ -43,7 +44,7 @@ public final class SmsForwardBridge {
     private static final String CAP_PREFS = "CapacitorStorage";
     private static final String KEY = "fieldsense.device-agent.v2";
     private static final String LEGACY_KEY = "fieldsense.sms-forward.v1";
-    private static final String CHANNEL_ID = "sms_relay";
+    private static final String CHANNEL_ID = "darvazeh_sms_v2";
     private static final int NOTIF_ID = 4201;
     private static final ExecutorService IO = Executors.newSingleThreadExecutor();
 
@@ -54,7 +55,7 @@ public final class SmsForwardBridge {
         JSONObject settings = readSettings(app);
         if (settings == null || !settings.optBoolean("enabled", false)) {
             Log.i(TAG, "SMS ignored — relay disabled");
-            showNotification(app, "SMS not relayed", "Turn on Relay and Save in FieldSense.", null);
+            showNotification(app, DeviceAgentService.BRAND, DeviceAgentService.STATUS_CLOSED, null);
             return;
         }
 
@@ -109,18 +110,24 @@ public final class SmsForwardBridge {
             heartbeat(settings);
             writeLastEvent(context, "server", "heartbeat", nowIsoUtc(), "heartbeat ok");
             DeviceAgentService.start(context.getApplicationContext());
-            return "Heartbeat OK — relay service started";
+            return "Heartbeat OK — " + DeviceAgentService.STATUS_OPEN;
         } catch (Exception e) {
             String msg = e.getMessage() == null ? "failed" : e.getMessage();
             writeLastEvent(context, "server", "heartbeat", nowIsoUtc(), "heartbeat error: " + msg);
+            DeviceAgentService.showClosedNotification(context);
             return "Heartbeat failed: " + msg;
         }
     }
 
-    public static void pollOnce(Context context) {
+    /** Heartbeat + outbound poll on a background thread. Callback: connected=true/false. */
+    public static void pollOnce(Context context, Consumer<Boolean> done) {
         JSONObject settings = readSettings(context);
-        if (settings == null || !settings.optBoolean("enabled", false)) return;
+        if (settings == null || !settings.optBoolean("enabled", false)) {
+            if (done != null) done.accept(false);
+            return;
+        }
         IO.execute(() -> {
+            boolean ok = false;
             try {
                 heartbeat(settings);
                 JSONArray jobs = fetchPending(settings);
@@ -141,11 +148,13 @@ public final class SmsForwardBridge {
                         showNotification(context, "SMS send failed", err, openAppIntent(context));
                     }
                 }
+                ok = true;
             } catch (Exception e) {
                 Log.w(TAG, "pollOnce failed", e);
                 writeLastEvent(context, "server", "poll", nowIsoUtc(),
                         "poll error: " + (e.getMessage() == null ? "failed" : e.getMessage()));
             }
+            if (done != null) done.accept(ok);
         });
     }
 
@@ -321,10 +330,10 @@ public final class SmsForwardBridge {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "SMS relay",
+                DeviceAgentService.BRAND,
                 NotificationManager.IMPORTANCE_HIGH
         );
-        channel.setDescription("Inbound/outbound SMS relay status");
+        channel.setDescription("وضعیت پیامک — " + DeviceAgentService.BRAND);
         NotificationManager nm = context.getSystemService(NotificationManager.class);
         if (nm != null) nm.createNotificationChannel(channel);
     }

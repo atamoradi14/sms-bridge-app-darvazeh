@@ -21,7 +21,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FieldSense — mobile sensors in the browser",
+  title: "دروازه — mobile sensors in the browser",
   description:
     "Demo webapp that reads Android/iOS motion, orientation, geolocation, ambient light, and vibration through browser APIs.",
 };

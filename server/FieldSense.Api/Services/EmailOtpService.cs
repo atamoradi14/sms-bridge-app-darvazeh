@@ -29,8 +29,8 @@ public class EmailOtpService(
         db.OtpChallenges.Add(challenge);
         await db.SaveChangesAsync();
 
-        var subject = "FieldSense login code";
-        var body = $"Your FieldSense login code is {code}. It expires in 10 minutes.";
+        var subject = "دروازه — کد ورود";
+        var body = $"کد ورود «دروازه»: {code}\nYour login code is {code}. It expires in 10 minutes.";
 
         if (_settings.AcsMock || string.IsNullOrWhiteSpace(_settings.AcsConnectionString))
         {

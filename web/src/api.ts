@@ -288,7 +288,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     res = await fetch(`${base}${path}`, { ...init, headers });
   } catch {
     throw new Error(
-      `Cannot reach API at ${base}. Deploy FieldSense.Api and set the FIELDSENSE_API_BASE app secret.`,
+      `Cannot reach API at ${base}. Deploy the API and set FIELDSENSE_API_BASE / config.js.`,
     );
   }
 

@@ -2,7 +2,7 @@
   "name": "fieldsense-sms-companion",
   "version": "1.0.0",
   "private": true,
-  "description": "Android device agent that relays SMS through the FieldSense ASP.NET API",
+  "description": "Android device agent for دروازه ها باز است (Iran SIM SMS gateway)",
   "scripts": {
     "sync": "npx cap sync android",
     "open": "npx cap open android"

@@ -3,7 +3,7 @@ export type Lang = "fa" | "en";
 const dict = {
   fa: {
     brand: "دروازه",
-    tagline: "دروازهٔ پیامک ایران — سیم‌کارت در خانه، صندوق در هر کجا",
+    tagline: "سیم‌کارت در خانه، صندوق در هر کجا",
     loginTitle: "ورود با ایمیل",
     loginAcs: "کد یک‌بارمصرف از طریق ایمیل (Azure ACS) ارسال می‌شود.",
     sampleBanner:
@@ -43,7 +43,7 @@ const dict = {
     queueSms: "صف‌کردن پیامک",
     deviceTitle: "گوشی ایران",
     deviceLead:
-      "اپ دروازه را روی گوشی دارای سیم در ایران نصب کنید و با همان ایمیل وارد شوید. اتصال به‌صورت خودکار برقرار می‌شود.",
+      "اپ «دروازه» را روی گوشی دارای سیم در ایران نصب کنید و با همان ایمیل وارد شوید. اتصال به‌صورت خودکار برقرار می‌شود.",
     connectPhone: "اتصال گوشی",
     downloadApk: "دانلود اپ اندروید (APK)",
     downloadApkHint:
@@ -76,7 +76,7 @@ const dict = {
     sampleOtpHint: "حالت نمونه: کد ۰۰۰۰۰۰ را وارد کنید",
   },
   en: {
-    brand: "Darvazeh",
+    brand: "دروازه",
     tagline: "Iran SMS gateway — SIM at home, inbox anywhere",
     loginTitle: "Email sign-in",
     loginAcs: "A one-time code is emailed via Azure Communication Services.",
@@ -117,7 +117,7 @@ const dict = {
     queueSms: "Queue SMS",
     deviceTitle: "Iran phone",
     deviceLead:
-      "Install the Darvazeh app on the SIM phone in Iran and sign in with the same email. Linking happens automatically.",
+      "Install «دروازه» on the SIM phone in Iran and sign in with the same email. Linking happens automatically.",
     connectPhone: "Connect your phone",
     downloadApk: "Download Android app (APK)",
     downloadApkHint:

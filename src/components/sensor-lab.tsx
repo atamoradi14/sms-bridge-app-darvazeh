@@ -81,7 +81,7 @@ export function SensorLab() {
         <header className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
           <div className="space-y-5">
             <p className="font-[family-name:var(--font-display)] text-5xl leading-none tracking-tight text-[color:var(--ink)] sm:text-6xl md:text-7xl">
-              FieldSense
+              دروازه
             </p>
             <h1 className="max-w-xl text-xl leading-snug text-[color:var(--ink)] sm:text-2xl">
               Read phone motion, orientation, location, and light from a web app.

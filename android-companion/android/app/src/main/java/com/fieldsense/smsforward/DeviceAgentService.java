@@ -18,11 +18,15 @@ import androidx.core.app.NotificationCompat;
 import org.json.JSONObject;
 
 /**
- * Lightweight foreground poller so older OEMs are less aggressive about killing the relay.
+ * Lightweight foreground poller so older OEMs are less aggressive about killing the agent.
  */
 public class DeviceAgentService extends Service {
+    public static final String BRAND = "دروازه";
+    public static final String STATUS_OPEN = "دروازه ها برای پیامک باز است";
+    public static final String STATUS_CLOSED = "دروازه ها برای پیامک بسته است";
+
     private static final String TAG = "FieldSenseAgent";
-    private static final String CHANNEL_ID = "device_agent";
+    private static final String CHANNEL_ID = "darvazeh_agent_v3";
     private static final int NOTIF_ID = 4210;
     private static final long INTERVAL_MS = 12_000L;
 
@@ -31,9 +35,11 @@ public class DeviceAgentService extends Service {
         @Override
         public void run() {
             try {
-                SmsForwardBridge.pollOnce(getApplicationContext());
+                SmsForwardBridge.pollOnce(getApplicationContext(), ok ->
+                        handler.post(() -> publishStatus(ok ? STATUS_OPEN : STATUS_CLOSED, true)));
             } catch (Exception e) {
                 Log.w(TAG, "tick failed", e);
+                publishStatus(STATUS_CLOSED, true);
             }
             handler.postDelayed(this, INTERVAL_MS);
         }
@@ -49,14 +55,23 @@ public class DeviceAgentService extends Service {
     }
 
     public static void stop(Context context) {
+        showClosedNotification(context.getApplicationContext());
         context.stopService(new Intent(context, DeviceAgentService.class));
+    }
+
+    /** Update the persistent status notification from outside the service. */
+    public static void showClosedNotification(Context context) {
+        ensureChannelStatic(context);
+        NotificationManager nm = context.getSystemService(NotificationManager.class);
+        if (nm == null) return;
+        nm.notify(NOTIF_ID, buildNotificationStatic(context, STATUS_CLOSED, false));
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
         ensureChannel();
-        startForeground(NOTIF_ID, buildNotification("FieldSense relay running"));
+        startForeground(NOTIF_ID, buildNotification(STATUS_OPEN, true));
         handler.post(tick);
     }
 
@@ -64,9 +79,11 @@ public class DeviceAgentService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         JSONObject settings = SmsForwardBridge.readSettings(this);
         if (settings == null || !settings.optBoolean("enabled", false)) {
+            publishStatus(STATUS_CLOSED, false);
             stopSelf();
             return START_NOT_STICKY;
         }
+        publishStatus(STATUS_OPEN, true);
         return START_STICKY;
     }
 
@@ -81,32 +98,48 @@ public class DeviceAgentService extends Service {
         return null;
     }
 
-    private Notification buildNotification(String text) {
-        Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
-        if (open == null) open = new Intent(this, MainActivity.class);
+    private void publishStatus(String text, boolean ongoing) {
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm == null) return;
+        nm.notify(NOTIF_ID, buildNotification(text, ongoing));
+    }
+
+    private Notification buildNotification(String text, boolean ongoing) {
+        return buildNotificationStatic(this, text, ongoing);
+    }
+
+    private static Notification buildNotificationStatic(Context context, String text, boolean ongoing) {
+        Intent open = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (open == null) open = new Intent(context, MainActivity.class);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_IMMUTABLE;
-        PendingIntent pi = PendingIntent.getActivity(this, 0, open, flags);
+        PendingIntent pi = PendingIntent.getActivity(context, 0, open, flags);
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        return new NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_notify_sync)
-                .setContentTitle("FieldSense relay")
+                .setContentTitle(BRAND)
                 .setContentText(text)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
                 .setContentIntent(pi)
-                .setOngoing(true)
+                .setOngoing(ongoing)
+                .setOnlyAlertOnce(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
     }
 
     private void ensureChannel() {
+        ensureChannelStatic(this);
+    }
+
+    private static void ensureChannelStatic(Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "Device relay",
+                BRAND,
                 NotificationManager.IMPORTANCE_LOW
         );
-        channel.setDescription("Keeps Iran phone online for SMS relay");
-        NotificationManager nm = getSystemService(NotificationManager.class);
+        channel.setDescription(BRAND + " — وضعیت پیامک");
+        NotificationManager nm = context.getSystemService(NotificationManager.class);
         if (nm != null) nm.createNotificationChannel(channel);
     }
 }

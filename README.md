@@ -1,6 +1,6 @@
-# FieldSense Relay (v2)
+# دروازه ها باز است (v2)
 
-Iran SIM home-phone SMS relay: leave your phone + SIM in Iran, use the web app abroad to **read inbound SMS** and (when admin grants relay) **send SMS out through that phone**.
+Iran SIM home-phone SMS gateway: leave your phone + SIM in Iran, use the web app abroad to **read inbound SMS** and (when admin grants relay) **send SMS out through that phone**.
 
 Tag **`v1.0`** is the earlier Next.js sensors + SMTP Android forwarder. Current `main` is the v2 stack below.
 
@@ -15,7 +15,7 @@ Tag **`v1.0`** is the earlier Next.js sensors + SMTP Android forwarder. Current 
 ```
 Foreign user (web)
     ↕ HTTPS JWT
-FieldSense API  ←→  Azure ACS (OTP + optional SMS→email)
+API (دروازه ها باز است)  ←→  Azure ACS (OTP + optional SMS→email)
     ↕ X-Device-Token
 Android phone (Iran SIM)
 ```
