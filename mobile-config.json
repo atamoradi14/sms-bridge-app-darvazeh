@@ -1,0 +1,6 @@
+{
+  "apiBase": "https://aerospace-template-definitions-prostate.trycloudflare.com",
+  "brand": "دروازه",
+  "note": "Temporary test tunnel to the API. Replace with your stable public API URL anytime — Android picks this up without a new APK.",
+  "updatedAt": "2026-11-11T03:01:00Z"
+}
