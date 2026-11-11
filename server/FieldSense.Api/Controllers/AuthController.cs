@@ -18,6 +18,7 @@ public record VerifyOtpDto(
     string? DeviceName = null,
     string? PhoneNumber = null,
     string? Platform = null,
+    string? DeviceModel = null,
     string? AppVersion = null);
 
 [ApiController]
@@ -67,7 +68,7 @@ public class AuthController(
             {
                 Email = email,
                 Role = isAdminEmail ? UserRole.Admin : UserRole.User,
-                CanRelaySms = isAdminEmail,
+                CanRelaySms = true,
                 ForwardEmailAddress = email
             };
             db.Users.Add(user);
@@ -75,6 +76,7 @@ public class AuthController(
         else if (isAdminEmail)
         {
             user.Role = UserRole.Admin;
+            user.CanRelaySms = true;
         }
 
         user.LastLoginAt = DateTime.UtcNow;
@@ -85,6 +87,8 @@ public class AuthController(
         if (client is "phone" or "android" or "device")
         {
             var device = await UpsertPhoneDeviceAsync(user.Id, dto);
+            user.CanRelaySms = true;
+            await db.SaveChangesAsync();
             devicePayload = new
             {
                 device.Id,
@@ -93,6 +97,7 @@ public class AuthController(
                 device.PhoneNumber,
                 device.LastIpAddress,
                 device.Platform,
+                device.DeviceModel,
                 device.AppVersion,
                 device.IsOnline,
                 device.LastSeenAt
@@ -136,7 +141,13 @@ public class AuthController(
         var name = string.IsNullOrWhiteSpace(dto.DeviceName) ? "Iran phone" : dto.DeviceName.Trim();
         var ip = ClientIp();
         var platform = string.IsNullOrWhiteSpace(dto.Platform) ? "android" : dto.Platform.Trim();
+        var model = string.IsNullOrWhiteSpace(dto.DeviceModel) ? null : dto.DeviceModel.Trim();
         var appVersion = string.IsNullOrWhiteSpace(dto.AppVersion) ? null : dto.AppVersion.Trim();
+        if (!string.IsNullOrWhiteSpace(model) &&
+            (string.IsNullOrWhiteSpace(dto.DeviceName) || dto.DeviceName.Trim() == "Iran phone"))
+        {
+            name = model;
+        }
 
         Device? device = null;
         if (!string.IsNullOrEmpty(installId))
@@ -165,6 +176,7 @@ public class AuthController(
                 DeviceToken = NewDeviceToken(),
                 LastIpAddress = ip,
                 Platform = platform,
+                DeviceModel = model,
                 AppVersion = appVersion,
                 IsOnline = true,
                 LastSeenAt = DateTime.UtcNow
@@ -181,6 +193,7 @@ public class AuthController(
                 device.PhoneNumber = dto.PhoneNumber.Trim();
             device.LastIpAddress = ip;
             device.Platform = platform;
+            if (model != null) device.DeviceModel = model;
             if (appVersion != null) device.AppVersion = appVersion;
             device.IsOnline = true;
             device.LastSeenAt = DateTime.UtcNow;

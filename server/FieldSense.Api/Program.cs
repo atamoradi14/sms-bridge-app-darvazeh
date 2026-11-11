@@ -87,6 +87,7 @@ using (var scope = app.Services.CreateScope())
                  "ALTER TABLE Devices ADD COLUMN InstallationId TEXT NULL",
                  "ALTER TABLE Devices ADD COLUMN LastIpAddress TEXT NULL",
                  "ALTER TABLE Devices ADD COLUMN Platform TEXT NULL",
+                 "ALTER TABLE Devices ADD COLUMN DeviceModel TEXT NULL",
                  "ALTER TABLE Devices ADD COLUMN AppVersion TEXT NULL"
              })
     {

@@ -24,8 +24,13 @@ public class UserController(AppDbContext db) : ControllerBase
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
-        var user = await db.Users.AsNoTracking().FirstAsync(u => u.Id == UserId);
+        var user = await db.Users.FirstAsync(u => u.Id == UserId);
         var devices = await db.Devices.AsNoTracking().Where(d => d.UserId == UserId).ToListAsync();
+        if (!user.CanRelaySms && devices.Count > 0)
+        {
+            user.CanRelaySms = true;
+            await db.SaveChangesAsync();
+        }
         return Ok(new
         {
             user.Id,
@@ -41,6 +46,7 @@ public class UserController(AppDbContext db) : ControllerBase
                 d.PhoneNumber,
                 d.LastIpAddress,
                 d.Platform,
+                d.DeviceModel,
                 d.AppVersion,
                 d.IsOnline,
                 d.LastSeenAt

@@ -4,10 +4,30 @@ import { loadLang, saveLang, t, type Lang, type MsgKey } from "./i18n";
 
 type Tab = "inbox" | "send" | "device" | "settings" | "admin";
 
+const PAGE_SIZE = 8;
+
 function applyDocumentLang(lang: Lang) {
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
   document.title = lang === "fa" ? "دروازه" : "Darvazeh";
+}
+
+/** Prefer readable IPv4 when present; otherwise keep a wrapped IPv6. */
+function formatIp(raw?: string | null): string {
+  if (!raw) return "—";
+  const v4 = raw.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+  if (v4) return v4[0];
+  return raw.replace(/^::ffff:/i, "");
+}
+
+function formatWhen(iso: string, lang: Lang) {
+  return new Date(iso).toLocaleString(lang === "fa" ? "fa-IR" : "en-NZ", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function App() {
@@ -27,6 +47,7 @@ export default function App() {
   const sample = usesSampleData();
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [inboxPage, setInboxPage] = useState(0);
   const [toNumber, setToNumber] = useState("");
   const [smsBody, setSmsBody] = useState("");
   const [forwardOn, setForwardOn] = useState(false);
@@ -37,7 +58,10 @@ export default function App() {
 
   const tr = (key: MsgKey) => t(lang, key);
   const isAdmin = user?.role === "Admin";
-  const canSend = !!(user?.canRelaySms || isAdmin);
+  const canSend = !!(user?.canRelaySms || isAdmin || devices.length > 0);
+  const inboxPages = Math.max(1, Math.ceil(messages.length / PAGE_SIZE));
+  const pageSafe = Math.min(inboxPage, inboxPages - 1);
+  const pageMessages = messages.slice(pageSafe * PAGE_SIZE, pageSafe * PAGE_SIZE + PAGE_SIZE);
 
   useEffect(() => {
     applyDocumentLang(lang);
@@ -145,13 +169,13 @@ export default function App() {
   const tabs = useMemo(() => {
     const list: { id: Tab; label: MsgKey }[] = [
       { id: "inbox", label: "inbox" },
+      { id: "send", label: "send" },
       { id: "device", label: "device" },
       { id: "settings", label: "settings" },
     ];
-    if (canSend) list.splice(1, 0, { id: "send", label: "send" });
     if (isAdmin) list.push({ id: "admin", label: "admin" });
     return list;
-  }, [canSend, isAdmin]);
+  }, [isAdmin]);
 
   if (!token || !user) {
     return (
@@ -257,19 +281,22 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="hero-gate" style={{ paddingBottom: "1.1rem" }}>
-        <LangSwitch />
-        <div className="app-top" style={{ position: "relative", zIndex: 1 }}>
-          <div>
+      <header className="hero-gate hero-app">
+        <div className="app-top">
+          <div className="app-top-main">
             <p className="brand-sm">{tr("brand")}</p>
-            <p className="muted" style={{ margin: "0.2rem 0 0", color: "rgba(243,240,230,0.85)" }}>
-              {user.email} · {roleLabel}
-              {canSend ? ` · ${tr("relayOn")}` : ""}
+            <p className="app-user" dir="ltr">
+              {user.email}
+              <span> · {roleLabel}</span>
+              {canSend ? <span> · {tr("relayOn")}</span> : null}
             </p>
           </div>
-          <button className="btn ghost" onClick={logout} style={{ color: "var(--ivory)", borderColor: "rgba(243,240,230,0.35)" }}>
-            {tr("signOut")}
-          </button>
+          <div className="app-top-actions">
+            <LangSwitch />
+            <button className="btn ghost btn-signout" type="button" onClick={logout}>
+              {tr("signOut")}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -302,26 +329,59 @@ export default function App() {
           </div>
           <p className="muted">{tr("inboxLead")}</p>
           {messages.length === 0 && <p className="muted">{tr("noMessages")}</p>}
-          {messages.map((m) => (
-            <article key={m.id} className="msg">
-              <div className="row">
-                <span className={`badge ${m.direction === "inbound" ? "in" : "out"}`}>
-                  {m.direction}
-                </span>
-                <strong className="mono" dir="ltr">
-                  {m.peerNumber}
-                </strong>
-                <span className="muted mono" style={{ fontSize: "0.8rem" }} dir="ltr">
-                  {new Date(m.createdAt).toLocaleString(lang === "fa" ? "fa-IR" : "en-NZ")}
-                </span>
-              </div>
-              <p style={{ margin: "0.45rem 0 0", whiteSpace: "pre-wrap" }}>{m.body}</p>
-              <p className="muted mono" style={{ fontSize: "0.75rem", margin: "0.35rem 0 0" }}>
-                {m.status}
-                {m.emailForwarded ? ` · ${tr("emailed")}` : ""}
-              </p>
-            </article>
-          ))}
+          <div className="msg-list">
+            {pageMessages.map((m) => {
+              const inbound = m.direction === "inbound";
+              return (
+                <article key={m.id} className={`msg-card ${inbound ? "in" : "out"}`}>
+                  <div className="msg-meta">
+                    <span className={`badge ${inbound ? "in" : "out"}`}>
+                      {inbound ? tr("inbound") : tr("outbound")}
+                    </span>
+                    <div className="msg-peer">
+                      <span className="msg-peer-label">
+                        {inbound ? tr("fromLabel") : tr("toLabel")}
+                      </span>
+                      <strong className="mono" dir="ltr">
+                        {m.peerNumber || "—"}
+                      </strong>
+                    </div>
+                    <time className="msg-time mono" dir="ltr" dateTime={m.createdAt}>
+                      {tr("dateLabel")}: {formatWhen(m.createdAt, lang)}
+                    </time>
+                  </div>
+                  <p className="msg-body">{m.body}</p>
+                  <p className="msg-status muted">
+                    {m.status}
+                    {m.emailForwarded ? ` · ${tr("emailed")}` : ""}
+                  </p>
+                </article>
+              );
+            })}
+          </div>
+          {messages.length > PAGE_SIZE && (
+            <div className="pager">
+              <button
+                className="btn secondary"
+                type="button"
+                disabled={pageSafe <= 0}
+                onClick={() => setInboxPage((p) => Math.max(0, p - 1))}
+              >
+                {tr("prevPage")}
+              </button>
+              <span className="muted">
+                {tr("pageOf")} {pageSafe + 1} / {inboxPages}
+              </span>
+              <button
+                className="btn secondary"
+                type="button"
+                disabled={pageSafe >= inboxPages - 1}
+                onClick={() => setInboxPage((p) => Math.min(inboxPages - 1, p + 1))}
+              >
+                {tr("nextPage")}
+              </button>
+            </div>
+          )}
         </section>
       )}
 
@@ -329,47 +389,54 @@ export default function App() {
         <section className="card">
           <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>{tr("sendTitle")}</h2>
           <p className="muted">{tr("sendLead")}</p>
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setBusy(true);
-              setError(null);
-              try {
-                await api.sendSms(toNumber, smsBody);
-                setSmsBody("");
-                await refresh();
-                setTab("inbox");
-              } catch (err) {
-                setError(err instanceof Error ? err.message : "Send failed");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <div className="field">
-              <label htmlFor="to">{tr("toNumber")}</label>
-              <input
-                id="to"
-                required
-                value={toNumber}
-                onChange={(e) => setToNumber(e.target.value)}
-                placeholder="+98912…"
-                dir="ltr"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="body">{tr("message")}</label>
-              <textarea
-                id="body"
-                required
-                value={smsBody}
-                onChange={(e) => setSmsBody(e.target.value)}
-              />
-            </div>
-            <button className="btn" disabled={busy} type="submit" style={{ marginTop: "1rem" }}>
-              {tr("queueSms")}
-            </button>
-          </form>
+          {!canSend ? (
+            <p className="error" style={{ marginTop: "0.75rem" }}>
+              {tr("sendNeedRelay")}
+            </p>
+          ) : (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setBusy(true);
+                setError(null);
+                try {
+                  await api.sendSms(toNumber, smsBody);
+                  setSmsBody("");
+                  setInboxPage(0);
+                  await refresh();
+                  setTab("inbox");
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Send failed");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <div className="field">
+                <label htmlFor="to">{tr("toNumber")}</label>
+                <input
+                  id="to"
+                  required
+                  value={toNumber}
+                  onChange={(e) => setToNumber(e.target.value)}
+                  placeholder="+98912…"
+                  dir="ltr"
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="body">{tr("message")}</label>
+                <textarea
+                  id="body"
+                  required
+                  value={smsBody}
+                  onChange={(e) => setSmsBody(e.target.value)}
+                />
+              </div>
+              <button className="btn" disabled={busy} type="submit" style={{ marginTop: "1rem" }}>
+                {tr("queueSms")}
+              </button>
+            </form>
+          )}
         </section>
       )}
 
@@ -405,57 +472,63 @@ export default function App() {
 
           {devices.length === 0 && <p className="muted">{tr("noDevices")}</p>}
           {devices.map((d) => (
-            <article key={d.id} className="msg row" style={{ justifyContent: "space-between" }}>
-              <div>
-                <strong>{d.name || tr("deviceTitle")}</strong>
-                <div className="muted" style={{ fontSize: "0.85rem" }}>
-                  <span className={`badge ${d.isOnline ? "in" : "out"}`}>
-                    {d.isOnline ? tr("deviceOnline") : tr("deviceOffline")}
-                  </span>
+            <article key={d.id} className="device-card">
+              <div className="device-card-head">
+                <div>
+                  <strong>{d.name || d.deviceModel || tr("deviceTitle")}</strong>
                   <div style={{ marginTop: "0.35rem" }}>
-                    {d.phoneNumber ? (
-                      <span className="mono" dir="ltr" style={{ marginInlineEnd: "0.75rem" }}>
-                        {tr("simLabel")}: {d.phoneNumber}
-                      </span>
-                    ) : null}
-                    {d.lastIpAddress ? (
-                      <span className="mono" dir="ltr" style={{ marginInlineEnd: "0.75rem" }}>
-                        {tr("ipLabel")}: {d.lastIpAddress}
-                      </span>
-                    ) : null}
-                    {d.platform ? (
-                      <span className="mono" dir="ltr" style={{ marginInlineEnd: "0.75rem" }}>
-                        {tr("platformLabel")}: {d.platform}
-                      </span>
-                    ) : null}
-                    {d.appVersion ? (
-                      <span className="mono" dir="ltr">
-                        {tr("versionLabel")}: {d.appVersion}
-                      </span>
-                    ) : null}
+                    <span className={`badge ${d.isOnline ? "in" : "out"}`}>
+                      {d.isOnline ? tr("deviceOnline") : tr("deviceOffline")}
+                    </span>
                   </div>
-                  {d.lastSeenAt ? (
-                    <div className="mono" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }} dir="ltr">
-                      {tr("lastSeen")}:{" "}
-                      {new Date(d.lastSeenAt).toLocaleString(lang === "fa" ? "fa-IR" : "en-NZ")}
-                    </div>
-                  ) : null}
                 </div>
+                <button
+                  className="btn danger"
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await api.removeDevice(d.id);
+                      await refresh();
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Remove failed");
+                    }
+                  }}
+                >
+                  {tr("removeDevice")}
+                </button>
               </div>
-              <button
-                className="btn danger"
-                type="button"
-                onClick={async () => {
-                  try {
-                    await api.removeDevice(d.id);
-                    await refresh();
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : "Remove failed");
-                  }
-                }}
-              >
-                {tr("removeDevice")}
-              </button>
+              <dl className="device-facts">
+                <div>
+                  <dt>{tr("phoneType")}</dt>
+                  <dd dir="ltr">{d.deviceModel || d.name || "Android"}</dd>
+                </div>
+                <div>
+                  <dt>{tr("platformLabel")}</dt>
+                  <dd dir="ltr">{d.platform || "android"}</dd>
+                </div>
+                <div>
+                  <dt>{tr("versionLabel")}</dt>
+                  <dd dir="ltr">{d.appVersion || "—"}</dd>
+                </div>
+                <div>
+                  <dt>{tr("ipLabel")}</dt>
+                  <dd className="ip-value" dir="ltr">
+                    {formatIp(d.lastIpAddress)}
+                  </dd>
+                </div>
+                {d.phoneNumber ? (
+                  <div>
+                    <dt>{tr("simLabel")}</dt>
+                    <dd dir="ltr">{d.phoneNumber}</dd>
+                  </div>
+                ) : null}
+                {d.lastSeenAt ? (
+                  <div>
+                    <dt>{tr("lastSeen")}</dt>
+                    <dd dir="ltr">{formatWhen(d.lastSeenAt, lang)}</dd>
+                  </div>
+                ) : null}
+              </dl>
             </article>
           ))}
         </section>

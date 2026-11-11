@@ -240,6 +240,15 @@
         return id;
       }
 
+      function detectPhoneModel() {
+        const ua = navigator.userAgent || "";
+        const build = ua.match(/;\s*([^;]+)\s+Build\//i);
+        if (build && build[1]) return build[1].trim();
+        const android = ua.match(/Android\s([\d.]+)/i);
+        if (android) return "Android " + android[1];
+        return "Android phone";
+      }
+
       function load() {
         try { return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; }
         catch { return { ...defaults }; }
@@ -358,7 +367,8 @@
             code: otp,
             client: "phone",
             installationId: getInstallationId(),
-            deviceName: "Iran phone",
+            deviceName: detectPhoneModel(),
+            deviceModel: detectPhoneModel(),
             platform: "android",
             appVersion: "2.0.0",
           };
