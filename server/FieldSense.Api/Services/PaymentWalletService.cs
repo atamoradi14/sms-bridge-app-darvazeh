@@ -219,6 +219,38 @@ public class PaymentWalletService(AppDbContext db, EzpayBroker broker, Membershi
         await db.SaveChangesAsync(); await transaction.CommitAsync();
     }
 
+    /// <summary>
+    /// Connects the operator-configured default wallet phone once. The phone comes from deployment config (only operators can set it),
+    /// so it counts as proved ownership. Skipped when the phone is already a known owner (bootstrapped or connected before) or
+    /// another wallet is connected. Returns true when there is nothing left to do.
+    /// </summary>
+    public async Task<bool> Bootstrap(string phoneInput, string adminEmail, CancellationToken ct = default)
+    {
+        var phone = EzpayBroker.NormalizePhone(phoneInput);
+        if (await db.WalletOwners.AnyAsync(o => o.PhoneNumber == phone, ct)) return true;
+        var current = await db.PaymentWallets.AsNoTracking().Where(w => w.Id == 1).Select(w => w.PhoneNumber).SingleOrDefaultAsync(ct);
+        if (current != null) return true;
+        var email = adminEmail.Trim().ToLowerInvariant();
+        var admin = await db.Users.AsNoTracking().Where(u => u.Email == email && u.DeletedAt == null).Select(u => (Guid?)u.Id).FirstOrDefaultAsync(ct);
+        if (admin == null) return false; // The owner account appears on first sign-in; try again later.
+        var status = await broker.Probe(phone, ct);
+        if (status.Access != "Active")
+        {
+            logger.LogWarning("Default wallet {Phone} has no active Ezpay access ({Access}); connect it on the admin wallet page", EzpayBroker.MaskPhone(phone), status.Access);
+            return true;
+        }
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var w = await Row();
+        if (w.PhoneNumber != null) return true;
+        Connect(w, admin.Value, phone);
+        await RememberOwner(admin.Value, phone);
+        w.MerchantEnabled = status.IdentityVerified == true;
+        membership.Log(admin.Value, "payment_wallet_bootstrapped", EzpayBroker.MaskPhone(phone));
+        await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
+        logger.LogInformation("Connected default wallet {Phone} (merchant services {Merchant})", EzpayBroker.MaskPhone(phone), w.MerchantEnabled ? "on" : "off until identity is verified");
+        return true;
+    }
+
     /// <summary>The wallet new toman payments go into. Requires merchant services on and a verified, accessible Ezpay wallet.</summary>
     public async Task<string> PurchaseReceiver()
     {

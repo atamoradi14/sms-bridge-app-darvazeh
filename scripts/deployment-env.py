@@ -25,6 +25,7 @@ OPTIONAL_CONFIG = {
     # Toman checkout: the Iran-hosted Ezpay relay (/broker routes); the receiving wallet is connected on the admin page.
     'Billing__EzpayEnabled': 'false',
     'Billing__PaymentRelayEndpoint': '',
+    'Billing__DefaultWalletPhone': '',
 }
 CONFIG_KEYS = ('FieldSense__AdminEmail', 'FieldSense__AcsSenderAddress', 'FieldSense__AcsMock',
                'FieldSense__CorsOrigin', 'FieldSense__PublicApiBase')
@@ -103,6 +104,8 @@ def validate(values, build_only=False):
             errors.append('Set Billing__PaymentRelayEndpoint to the HTTPS Iran payment relay origin before enabling toman checkout')
         if len(values.get('Billing__PaymentRelayApiKey', '')) < 16:
             errors.append('Set Billing__PaymentRelayApiKey (the relay x-api-key) before enabling toman checkout')
+    if values.get('Billing__DefaultWalletPhone') and not re.fullmatch(r'09[0-9]{9}', values['Billing__DefaultWalletPhone']):
+        errors.append('Billing__DefaultWalletPhone must look like 09xxxxxxxxx')
     if not re.fullmatch(r'https://[A-Za-z0-9.-]+(?::[0-9]+)?', values.get('Billing__PortalOrigin', OPTIONAL_CONFIG['Billing__PortalOrigin']).rstrip('/')):
         errors.append('Billing__PortalOrigin must be a public HTTPS origin')
     google_enabled = values.get('Google__Enabled', 'false').lower()

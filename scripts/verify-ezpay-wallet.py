@@ -23,7 +23,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 RELAY_KEY = 'relay-fixture-key-' + 'r' * 24
-PHONE_NEW, PHONE_LINKED = '09120000001', '09120000002'
+PHONE_NEW, PHONE_LINKED, PHONE_DEFAULT = '09120000001', '09120000002', '09120000003'
 CONSENT_CODE = 4321
 state = {'linked': {PHONE_LINKED}, 'verified': set(), 'consents': {}, 'links': {}, 'calls': []}
 lock = threading.Lock()
@@ -127,15 +127,22 @@ def main():
         def pay(uid):
             with lock: state['links'][uid]['status'] = 'SUCCESS'
 
-        try:
-            process = subprocess.Popen(['dotnet', str(ROOT / 'server/FieldSense.Api/bin/Debug/net8.0/FieldSense.Api.dll')],
-                                       cwd=ROOT / 'server/FieldSense.Api', env=env, stdout=log, stderr=log)
+        def start(environment):
+            started = subprocess.Popen(['dotnet', str(ROOT / 'server/FieldSense.Api/bin/Debug/net8.0/FieldSense.Api.dll')],
+                                       cwd=ROOT / 'server/FieldSense.Api', env=environment, stdout=log, stderr=log)
             for _ in range(150):
-                if process.poll() is not None: raise AssertionError('API startup failed')
+                if started.poll() is not None: raise AssertionError('API startup failed')
                 try:
-                    if call('/health')[0] == 200: break
+                    if call('/health')[0] == 200: return started
                 except OSError: pass
                 time.sleep(.15)
+            raise AssertionError('API did not become healthy')
+
+        def stop(running):
+            running.terminate(); running.wait(10)
+
+        try:
+            process = start(env)
             admin, admin_id = login('admin@ndorbit.co.nz'); user, _ = login('buyer@example.com'); other, _ = login('other@example.com')
             plan = ok(call('/api/admin/plans', {'code': 'toman-silver', 'name': 'Silver', 'durationDays': 30, 'messageLimit': 200, 'emailForwardLimit': 10,
                                                 'sendEnabled': True, 'receiveEnabled': True, 'priceUsdCents': None, 'priceToman': 500000, 'isPurchasable': True}, admin))
@@ -229,9 +236,28 @@ def main():
             ok(call('/api/admin/wallet', token=admin, method='DELETE'), 204)
             assert ok(call('/api/admin/wallet', token=admin))['connection']['status'] == 'Disconnected'
             assert all(m in ('GET', 'POST', 'PUT') for m, _ in state['calls'])
+
+            # Billing__DefaultWalletPhone connects the configured wallet once on a fresh install (no SMS proof; it is operator config),
+            # with merchant services on because Ezpay reports it verified. A later admin disconnect is never overridden.
+            stop(process); process = None
+            with lock: state['linked'].add(PHONE_DEFAULT); state['verified'].add(PHONE_DEFAULT)
+            boot_env = {**env, 'ConnectionStrings__Default': 'Data Source=' + str(temporary / 'bootstrap.db'), 'Billing__DefaultWalletPhone': PHONE_DEFAULT}
+            process = start(boot_env)
+            admin, _ = login('admin@ndorbit.co.nz'); buyer, _ = login('buyer@example.com')
+            for _ in range(90):
+                view = ok(call('/api/admin/wallet', token=admin))
+                if view['connection']['status'] == 'Connected': break
+                time.sleep(1)
+            else: raise AssertionError('Default wallet was not connected')
+            assert view['connection']['phoneNumber'] == PHONE_DEFAULT and view['merchantEnabled'] and view['purchaseReady'], view
+            assert ok(call('/api/admin/wallet/reusable', token=admin))[0]['phoneNumber'] == PHONE_DEFAULT
+            ok(call('/api/admin/wallet', token=admin, method='DELETE'), 204)
+            stop(process); process = start(boot_env)
+            time.sleep(3)
+            assert ok(call('/api/admin/wallet', token=admin))['connection']['status'] == 'Disconnected'
             print('Ezpay default wallet and toman payment tests passed')
         finally:
-            if process: process.terminate(); process.wait(10)
+            if process: stop(process)
             log.close(); relay.shutdown()
 
 

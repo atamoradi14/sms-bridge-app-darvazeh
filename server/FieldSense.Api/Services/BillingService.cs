@@ -284,16 +284,35 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
 }
 
 /// <summary>Polls the relay for open toman orders every minute (Ezpay does not call back to Darvazeh).</summary>
-public class EzpayPaymentReconciler(IServiceScopeFactory scopes, ILogger<EzpayPaymentReconciler> logger) : BackgroundService
+public class EzpayPaymentReconciler(IServiceScopeFactory scopes, IOptions<BillingSettings> billing, IOptions<AppSettings> app,
+    IWebHostEnvironment environment, ILogger<EzpayPaymentReconciler> logger) : BackgroundService
 {
+    private bool bootstrapped;
+
+    private async Task BootstrapDefaultWallet(IServiceProvider services, CancellationToken ct)
+    {
+        var phone = billing.Value.DefaultWalletPhone;
+        if (bootstrapped || string.IsNullOrWhiteSpace(phone) || !billing.Value.EzpayConfiguredFor(environment.IsDevelopment())) return;
+        try { bootstrapped = await services.GetRequiredService<PaymentWalletService>().Bootstrap(phone, app.Value.AdminEmail, ct); }
+        catch (BillingException error)
+        {
+            bootstrapped = error.Code == "invalid_phone";
+            logger.LogWarning("Default wallet not connected yet: {Code}", error.Code);
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        try { using var first = scopes.CreateScope(); await BootstrapDefaultWallet(first.ServiceProvider, stoppingToken); }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
+        catch (Exception error) { logger.LogWarning(error, "Default wallet bootstrap failed"); }
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             try
             {
                 using var scope = scopes.CreateScope();
+                await BootstrapDefaultWallet(scope.ServiceProvider, stoppingToken);
                 var paid = await scope.ServiceProvider.GetRequiredService<BillingService>().ReconcileEzpayOrders(stoppingToken);
                 if (paid > 0) logger.LogInformation("Confirmed {Count} toman payments through Ezpay", paid);
             }

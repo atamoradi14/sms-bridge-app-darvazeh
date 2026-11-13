@@ -18,6 +18,9 @@ public class BillingSettings
     public bool EzpayEnabled { get; set; }
     public string PaymentRelayEndpoint { get; set; } = "";
     public string PaymentRelayApiKey { get; set; } = "";
+    /// <summary>Optional operator-chosen default wallet phone. Connected once on first start (when Ezpay reports active access);
+    /// after that the admin wallet page is in charge, so a later change or disconnect there is never overridden.</summary>
+    public string DefaultWalletPhone { get; set; } = "";
     /// <summary>Configured relay: HTTPS, or loopback HTTP in development (local test fixtures).</summary>
     public bool EzpayConfiguredFor(bool development) => EzpayEnabled && !string.IsNullOrWhiteSpace(PaymentRelayApiKey) &&
         IsRelayEndpoint(PaymentRelayEndpoint, development);
