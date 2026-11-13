@@ -1,0 +1,23 @@
+{
+  "release": "release-20261114-03",
+  "commit": "a24195f480a0037e05219d933251c63867a29911",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:ccbae45f02a514aec0fce44a308ec56bdf036cd521e727e2eeb916295c56a4e6",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:e90ab1ab93b84a1103af95090058ac688dfc91430993f00232fbcbe3d0f5990b"
+  },
+  "verifiedAtUtc": "2026-11-13T21:51:39Z",
+  "backupBeforeDeploy": ".local\\backups\\fieldsense-20261113T214541Z.db",
+  "productionDataPreserved": true,
+  "verification": [
+    "outbox provider budget and retry tests",
+    "browser polling fixture and virtual-time tests",
+    "password authentication regression",
+    "frontend production build",
+    "namespace darvazeh and worker node ready",
+    "database integrity and record ID preservation",
+    "public health and admin password login",
+    "Google enabled and workspace API reads",
+    "published workspace JS/CSS and toman banner",
+    "durable provider budget schema and new admin diagnostic fields"
+  ]
+}
