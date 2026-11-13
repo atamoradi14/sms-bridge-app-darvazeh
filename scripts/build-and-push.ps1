@@ -21,6 +21,16 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $Root
+. (Join-Path $PSScriptRoot 'deployment-env.ps1')
+Import-DeploymentEnv $Root
+if (-not $PSBoundParameters.ContainsKey('Username')) { $Username = $env:DOCKERHUB_USERNAME }
+if (-not $PSBoundParameters.ContainsKey('Tag') -and $env:IMAGE_TAG) { $Tag = $env:IMAGE_TAG }
+if (-not $NoPush) {
+  & python (Join-Path $PSScriptRoot 'deployment-env.py') check --build-only
+  if ($LASTEXITCODE -ne 0) { throw 'Docker Hub credentials missing from .env' }
+}
+# Fail immediately on Docker login/build/push errors (PowerShell 7.3+).
+$PSNativeCommandUseErrorActionPreference = $true
 
 if ([string]::IsNullOrWhiteSpace($Username)) {
   throw "Set -Username or DOCKERHUB_USERNAME"

@@ -1,0 +1,46 @@
+{
+  "release": "release-20261112-01",
+  "namespace": "darvazeh",
+  "worker": "ravand-worker-01",
+  "images": {
+    "api": "sha256:917f812bcc98bf63ee2c79ae2f96619098605ed061f08457e65eacd3e6461010",
+    "web": "sha256:804a8ad217d35f83b762c379bffbd704e44cb073b8660aba451739017c0b81f4"
+  },
+  "merchant": {
+    "legalName": "Niliarya Limited",
+    "tradingName": "ND ORBIT",
+    "country": "NZ"
+  },
+  "silver": {
+    "durationDays": 30,
+    "messages": 200,
+    "priceUsdCents": 500,
+    "priceToman": null
+  },
+  "stripe": {
+    "enabled": false,
+    "billingMode": "payment",
+    "recurring": false,
+    "webhook": "https://api1.daryajan.com/api/billing/stripe/webhook"
+  },
+  "toman": {
+    "providerPlanned": "ezpay-wallet-merchant",
+    "enabled": false
+  },
+  "verification": [
+    "API/web builds",
+    "7 deployment environment checks",
+    "membership HTTP/SQLite regression suite",
+    "billing HTTP/Stripe-protocol fixture suite",
+    "browser admin pricing fields",
+    "browser one-period purchase notices and disabled/unconfigured methods",
+    "live Silver price and preserved plan",
+    "live scoped billing catalog/admin payment history",
+    "database integrity",
+    "public webhook reachable with Stripe user agent"
+  ],
+  "remaining": [
+    "Connect approved Stripe business sandbox and webhook keys; perform real Stripe sandbox end-to-end tests.",
+    "Set toman price and implement Ezpay merchant connection when requested."
+  ]
+}

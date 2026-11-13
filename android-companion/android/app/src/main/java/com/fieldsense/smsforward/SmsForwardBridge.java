@@ -54,7 +54,7 @@ public final class SmsForwardBridge {
         Context app = context.getApplicationContext();
         JSONObject settings = readSettings(app);
         if (settings == null || !settings.optBoolean("enabled", false)) {
-            Log.i(TAG, "SMS ignored — relay disabled");
+            Log.i(TAG, "SMS ignored — connection paused");
             showNotification(app, DeviceAgentService.BRAND, DeviceAgentService.STATUS_CLOSED, null);
             return;
         }
@@ -64,18 +64,18 @@ public final class SmsForwardBridge {
         if (preview.length() > 80) preview = preview.substring(0, 80) + "…";
 
         writeLastEvent(app, from, body, receivedAt, "received");
-        showNotification(app, "SMS from " + safe(from), preview.isEmpty() ? "Uploading…" : preview, openAppIntent(app));
+        showNotification(app, "پیام از " + safe(from), preview.isEmpty() ? "در حال ثبت پیام…" : preview, openAppIntent(app));
 
         IO.execute(() -> {
             try {
-                int code = postInbound(settings, from, body, receivedAt);
+                int code = postInbound(app, settings, from, body, receivedAt);
                 writeLastEvent(app, from, body, receivedAt, "uploaded HTTP " + code);
-                showNotification(app, "SMS uploaded", "Inbox + optional email forward via server", openAppIntent(app));
+                showNotification(app, "دروازه", "پیام در صندوق شما ثبت شد.", openAppIntent(app));
             } catch (Exception e) {
                 String detail = e.getMessage() == null ? "upload failed" : e.getMessage();
                 Log.e(TAG, "Inbound upload failed", e);
                 writeLastEvent(app, from, body, receivedAt, "error: " + detail);
-                showNotification(app, "SMS upload failed", detail, openAppIntent(app));
+                showNotification(app, "دروازه", "پیام ثبت نشد. اتصال یا اشتراک را بررسی کنید.", openAppIntent(app));
             }
         });
     }
@@ -105,17 +105,17 @@ public final class SmsForwardBridge {
 
     public static String testHeartbeat(Context context) {
         JSONObject settings = readSettings(context);
-        if (settings == null) return "No settings saved";
+        if (settings == null) return "ابتدا اتصال را در وب‌اپ تأیید کنید.";
         try {
-            heartbeat(settings);
+            heartbeat(context, settings);
             writeLastEvent(context, "server", "heartbeat", nowIsoUtc(), "heartbeat ok");
             DeviceAgentService.start(context.getApplicationContext());
-            return "Heartbeat OK — " + DeviceAgentService.STATUS_OPEN;
+            return "گوشی به دروازه متصل است.";
         } catch (Exception e) {
             String msg = e.getMessage() == null ? "failed" : e.getMessage();
             writeLastEvent(context, "server", "heartbeat", nowIsoUtc(), "heartbeat error: " + msg);
             DeviceAgentService.showClosedNotification(context);
-            return "Heartbeat failed: " + msg;
+            return "اتصال برقرار نشد. اینترنت و اشتراک را بررسی کنید.";
         }
     }
 
@@ -129,23 +129,30 @@ public final class SmsForwardBridge {
         IO.execute(() -> {
             boolean ok = false;
             try {
-                heartbeat(settings);
-                JSONArray jobs = fetchPending(settings);
+                heartbeat(context, settings);
+                JSONArray jobs = fetchPending(context, settings);
                 for (int i = 0; i < jobs.length(); i++) {
                     JSONObject job = jobs.getJSONObject(i);
                     String jobId = job.optString("id", "");
                     String to = job.optString("toNumber", "");
                     String body = job.optString("body", "");
                     try {
-                        sendSms(context, to, body);
-                        reportResult(settings, jobId, "sent", null);
+                        SharedPreferences delivery = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                        if (!delivery.getBoolean("dispatched:" + jobId, false)) {
+                            JSONObject current=readSettings(context);
+                            if(current==null || !current.optBoolean("enabled") || !current.optString("deviceToken").equals(settings.optString("deviceToken")))break;
+                            sendSms(context, to, body);
+                            delivery.edit().putBoolean("dispatched:" + jobId, true).commit();
+                        }
+                        reportResult(context, settings, jobId, "sent", null);
                         writeLastEvent(context, to, body, nowIsoUtc(), "outbound sent job=" + jobId);
-                        showNotification(context, "SMS sent", "To " + to, openAppIntent(context));
+                        showNotification(context, "دروازه", "پیام برای ارسال به " + to + " ثبت شد.", openAppIntent(context));
                     } catch (Exception sendErr) {
                         String err = sendErr.getMessage() == null ? "send failed" : sendErr.getMessage();
-                        reportResult(settings, jobId, "failed", err);
+                        if (context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("dispatched:" + jobId, false)) continue;
+                        reportResult(context, settings, jobId, "failed", err);
                         writeLastEvent(context, to, body, nowIsoUtc(), "outbound failed: " + err);
-                        showNotification(context, "SMS send failed", err, openAppIntent(context));
+                        showNotification(context, "دروازه", "ارسال انجام نشد. اتصال و دسترسی ارسال را بررسی کنید.", openAppIntent(context));
                     }
                 }
                 ok = true;
@@ -169,24 +176,27 @@ public final class SmsForwardBridge {
         }
     }
 
-    private static void heartbeat(JSONObject settings) throws Exception {
-        request(settings, "POST", "/api/device/heartbeat", null);
+    private static void heartbeat(Context context, JSONObject settings) throws Exception {
+        HttpURLConnection conn=request(context,settings,"POST","/api/device/heartbeat",null);
+        try { int code=conn.getResponseCode();readBody(conn,code);if(code<200 || code>=300)throw new IllegalStateException("heartbeat HTTP "+code); }
+        finally {conn.disconnect();}
     }
 
-    private static int postInbound(JSONObject settings, String from, String body, String receivedAt) throws Exception {
+    private static int postInbound(Context context, JSONObject settings, String from, String body, String receivedAt) throws Exception {
         JSONObject payload = new JSONObject();
         payload.put("from", from);
         payload.put("body", body);
         payload.put("receivedAt", receivedAt);
-        HttpURLConnection conn = request(settings, "POST", "/api/device/inbound-sms", payload.toString());
+        payload.put("clientMessageId", java.util.UUID.nameUUIDFromBytes((from + "\n" + body + "\n" + receivedAt).getBytes(StandardCharsets.UTF_8)).toString());
+        HttpURLConnection conn = request(context, settings, "POST", "/api/device/inbound-sms", payload.toString());
         int code = conn.getResponseCode();
         conn.disconnect();
         if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
         return code;
     }
 
-    private static JSONArray fetchPending(JSONObject settings) throws Exception {
-        HttpURLConnection conn = request(settings, "GET", "/api/device/outbound/pending", null);
+    private static JSONArray fetchPending(Context context, JSONObject settings) throws Exception {
+        HttpURLConnection conn = request(context, settings, "GET", "/api/device/outbound/pending", null);
         int code = conn.getResponseCode();
         String raw = readBody(conn, code);
         conn.disconnect();
@@ -194,17 +204,17 @@ public final class SmsForwardBridge {
         return new JSONArray(raw);
     }
 
-    private static void reportResult(JSONObject settings, String jobId, String status, String error) throws Exception {
+    private static void reportResult(Context context, JSONObject settings, String jobId, String status, String error) throws Exception {
         JSONObject payload = new JSONObject();
         payload.put("status", status);
         if (error != null) payload.put("error", error);
-        HttpURLConnection conn = request(settings, "POST", "/api/device/outbound/" + jobId + "/result", payload.toString());
+        HttpURLConnection conn = request(context, settings, "POST", "/api/device/outbound/" + jobId + "/result", payload.toString());
         int code = conn.getResponseCode();
         conn.disconnect();
         if (code < 200 || code >= 300) throw new IllegalStateException("result HTTP " + code);
     }
 
-    private static HttpURLConnection request(JSONObject settings, String method, String path, String jsonBody) throws Exception {
+    private static HttpURLConnection request(Context context, JSONObject settings, String method, String path, String jsonBody) throws Exception {
         String base = settings.optString("apiBase", "").trim().replaceAll("/$", "");
         String token = settings.optString("deviceToken", "").trim();
         if (base.isEmpty()) throw new IllegalArgumentException("Set API base URL");
@@ -217,6 +227,13 @@ public final class SmsForwardBridge {
         conn.setRequestMethod(method);
         conn.setRequestProperty("Accept", "application/json");
         conn.setRequestProperty("X-Device-Token", token);
+        JSONObject health=DeviceHealth.snapshot(context);
+        if(health.has("batteryLevel"))conn.setRequestProperty("X-Battery-Level",health.optString("batteryLevel"));
+        conn.setRequestProperty("X-Is-Charging",health.optString("isCharging"));
+        conn.setRequestProperty("X-Network-Type",health.optString("networkType"));
+        conn.setRequestProperty("X-Network-Validated",health.optString("networkValidated"));
+        conn.setRequestProperty("X-Sms-Permissions",health.optString("smsPermissionsGranted"));
+        conn.setRequestProperty("X-Battery-Exempt",health.optString("batteryOptimizationExempt"));
         if (jsonBody != null) {
             byte[] bytes = jsonBody.getBytes(StandardCharsets.UTF_8);
             conn.setDoOutput(true);
@@ -301,9 +318,10 @@ public final class SmsForwardBridge {
     }
 
     private static void showNotification(Context context, String title, String text, Intent contentIntent) {
+        text += " · " + DeviceHealth.summary(context);
         ensureChannel(context);
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_email)
+                .setSmallIcon(R.drawable.darvazeh_notification)
                 .setContentTitle(title)
                 .setContentText(text)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(text))

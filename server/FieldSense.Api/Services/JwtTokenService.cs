@@ -17,6 +17,8 @@ public class JwtTokenService(IOptions<AppSettings> options)
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email),
+            new("auth_version", user.AuthVersion.ToString()),
+            new("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
             new(ClaimTypes.Role, user.Role.ToString()),
             new("can_relay", user.CanRelaySms ? "1" : "0")
         };

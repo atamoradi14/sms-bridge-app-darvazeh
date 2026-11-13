@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Text;
 using FieldSense.Api.Data;
 using FieldSense.Api.Services;
@@ -8,14 +10,32 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command",LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics",LogLevel.Warning);
 
 builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("FieldSense"));
+builder.Services.Configure<GoogleSettings>(builder.Configuration.GetSection("Google"));
+builder.Services.AddHttpClient<IGoogleIdentityProvider,GoogleIdentityProvider>(client=>client.Timeout=TimeSpan.FromSeconds(20));
+builder.Services.Configure<BillingSettings>(builder.Configuration.GetSection("Billing"));
 var settings = builder.Configuration.GetSection("FieldSense").Get<AppSettings>() ?? new AppSettings();
 
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseSqlite(builder.Configuration.GetConnectionString("Default") ?? "Data Source=fieldsense.db"));
 
+builder.Services.AddRateLimiter(o=> {
+    o.RejectionStatusCode=429;
+    o.AddPolicy("password-auth",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=60,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
+    o.AddPolicy("signup",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=10,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
+});
+builder.Services.AddScoped<EmailOutbox>();
+builder.Services.AddSingleton<IMailTransport,MailTransport>();
+builder.Services.AddHostedService<EmailQueueWorker>();
 builder.Services.AddScoped<EmailOtpService>();
+builder.Services.AddScoped<MembershipService>();
+builder.Services.AddScoped<DeviceHealthService>();
+builder.Services.AddHostedService<DeviceHealthMonitor>();
+builder.Services.AddScoped<BillingService>();
+builder.Services.AddHttpClient<IStripeGateway, StripeGateway>(client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddScoped<JwtTokenService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -34,9 +54,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
         };
         opt.MapInboundClaims = false;
+        opt.Events=new JwtBearerEvents {OnTokenValidated=async context=> {
+            var id=context.Principal?.FindFirst("sub")?.Value;
+            if(!Guid.TryParse(id,out var uid)){context.Fail("Invalid account");return;}
+            var db=context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+            var version=await db.Users.Where(u=>u.Id==uid && u.DeletedAt==null && u.SuspendedAt==null).Select(u=>(int?)u.AuthVersion).SingleOrDefaultAsync();
+            var supplied=int.TryParse(context.Principal?.FindFirst("auth_version")?.Value,out var parsed)?parsed:0;
+            if(version==null || version!=supplied)context.Fail("Session expired");
+        }};
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options => options.AddPolicy("Owner", policy =>
+    policy.RequireRole("Admin").RequireClaim("email", settings.AdminEmail.Trim().ToLowerInvariant())));
 builder.Services.AddControllers()
     .AddJsonOptions(o =>
     {
@@ -45,7 +74,7 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "دروازه API", Version = "v2" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Darvazeh", Version = "v2" });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -72,7 +101,8 @@ builder.Services.AddCors(opt =>
         p.WithOrigins(
                 settings.CorsOrigin.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .AllowAnyHeader()
-            .AllowAnyMethod());
+            .AllowAnyMethod()
+            .AllowCredentials());
 });
 
 var app = builder.Build();
@@ -80,25 +110,13 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
-    // Lightweight SQLite column add for existing DBs (EnsureCreated does not migrate).
-    foreach (var sql in new[]
-             {
-                 "ALTER TABLE Devices ADD COLUMN InstallationId TEXT NULL",
-                 "ALTER TABLE Devices ADD COLUMN LastIpAddress TEXT NULL",
-                 "ALTER TABLE Devices ADD COLUMN Platform TEXT NULL",
-                 "ALTER TABLE Devices ADD COLUMN DeviceModel TEXT NULL",
-                 "ALTER TABLE Devices ADD COLUMN AppVersion TEXT NULL"
-             })
-    {
-        try { db.Database.ExecuteSqlRaw(sql); }
-        catch { /* column already exists */ }
-    }
+    await SchemaUpgrade.Apply(db, settings.AdminEmail.Trim());
 }
 
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

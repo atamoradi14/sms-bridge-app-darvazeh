@@ -1,0 +1,59 @@
+{
+  "release": "release-20261111-05",
+  "namespace": "darvazeh",
+  "node": "ravand-worker-01",
+  "images": {
+    "api": "sha256:937ded7c727504480d563742a12432a13d090593c53962c7887ef7fdc8153915",
+    "web": "sha256:e1c1c8ae9e4798b26e11d84815829bc7d7383f2e6f90d2a65513b56ca9fcf2e2"
+  },
+  "androidVersion": "2.1.1 (6)",
+  "trial": {
+    "days": 3,
+    "combinedMessageLimit": 50,
+    "sendEnabled": true,
+    "receiveEnabled": true
+  },
+  "checks": {
+    "portal": {
+      "status": 200,
+      "sha256": null
+    },
+    "health": {
+      "status": 200,
+      "sha256": null
+    },
+    "logo": {
+      "status": 200,
+      "sha256": "f60cab5b017fa38019c9910297fea374d1699c365258a1b9aa52fb9791312bf5"
+    },
+    "image": {
+      "status": 200,
+      "sha256": "b0f5ffd6b14af9bf8d3eb5320cf6c076c2c364442aaa76fc9c8efa2038714621"
+    },
+    "android": {
+      "status": 200,
+      "sha256": "e1ba217a590346144549b14ad35417e228ce7fa4eb9dca96e4553690b3aa3bfe"
+    },
+    "hamafarin": {
+      "status": 200,
+      "sha256": null
+    }
+  },
+  "database": "additive migration, legacy identities preserved, integrity OK; verified worker and off-node backup retained",
+  "localRegressionChecks": [
+    "legacy migration",
+    "feature controls and phone sign-in restrictions",
+    "combined/concurrent quota",
+    "idempotency",
+    "expiry",
+    "plan renewal/history",
+    "uniform administrator credential errors and OTP attempts",
+    "restart persistence"
+  ],
+  "limits": [
+    "No real email or SIM-based SMS was sent by verification.",
+    "Plans use administrator activation; payment checkout is not configured."
+  ],
+  "imageProvenance": "docs/branding-image.md",
+  "administrator": "admin@ndorbit.co.nz"
+}

@@ -102,6 +102,9 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public String getHealth() { return DeviceHealth.snapshot(getApplicationContext()).toString(); }
+
+        @JavascriptInterface
         public String getLastEvent() {
             return SmsForwardBridge.getLastEventJson(getApplicationContext());
         }

@@ -1,120 +1,159 @@
-# دروازه ها باز است (v2)
+# Darvazeh · دروازه
 
-Iran SIM home-phone SMS gateway: leave your phone + SIM in Iran, use the web app abroad to **read inbound SMS** and (when admin grants relay) **send SMS out through that phone**.
+A private message inbox inspired by the welcoming gateways of Safavid caravanserais.
+Connect an Android phone holding your SIM, then read and send messages from your account.
 
-Tag **`v1.0`** is the earlier Next.js sensors + SMTP Android forwarder. Current `main` is the v2 stack below.
+Public portal: https://darvazeh.daryajan.com/
 
-## Architecture
+## Accounts and membership
 
-| Piece | Role |
-| --- | --- |
-| **ASP.NET 8 API** (`server/FieldSense.Api`) | Auth, inbox, admin grants, device agent endpoints, ACS email |
-| **Vite React web** (`web/`) | Single UI for admin + users (email OTP login) |
-| **Android agent** (`android-companion/`) | Phone in Iran: upload inbound SMS, send queued outbound SMS |
+- Email sign-in uses a six-digit, single-use code valid for ten minutes.
+- New accounts start with a **three-day trial and 20 messages total**, shared across sending and receiving. Both features are enabled.
+- One received message or queued outgoing message consumes one unit. Failed outgoing messages remain counted. Retrying the same message identifier does not consume another unit.
+- Expiry or an exhausted allowance stops new work; existing messages remain readable. A previously reserved outgoing message can still be dispatched at the quota boundary, while explicit feature revocation or expiry stops dispatch.
+- Administrators can create plans with a duration, message allowance and separate sending/receiving permissions, activate or renew them, and independently change each member's feature permissions.
+- Members can buy one fixed period at a time through USD card checkout after Stripe is configured. No automatic renewal is created. Toman prices are independent; the Ezpay merchant connection is planned for later.
+- Paid purchases preserve an existing unused paid period and queue the next period. Upgrading from the trial starts immediately. Administrators can also activate plans directly.
 
-```
-Foreign user (web)
-    ↕ HTTPS JWT
-API (دروازه ها باز است)  ←→  Azure ACS (OTP + optional SMS→email)
-    ↕ X-Device-Token
-Android phone (Iran SIM)
-```
+The administrator signs in at the same portal with **admin@ndorbit.co.nz**, their email code and the additional administrator password from root `.env`. The Administration tab shows all users, received/sent/queued/failed counts, subscription details, feature controls, plans and recent account activity. The activity view excludes private message content.
 
-## Quick start
+## Components
 
-### 1. API
+- `server/FieldSense.Api`: ASP.NET 8 authentication, membership, quota enforcement, message/device endpoints and persistent activity records.
+- `web`: bilingual React/Vite portal, administrator tools and Android download.
+- `android-companion`: Android 7+ application with phone linking, background connection and message synchronization.
+- SQLite state lives on the existing persistent volume, not inside the application image. Additive startup upgrades preserve existing users and messages, initialize trial subscriptions, and backfill message usage.
 
-```bash
-cd server/FieldSense.Api
-# optional: export FieldSense__AdminEmail=... FieldSense__AdminPassword=... FieldSense__AcsConnectionString=...
-dotnet run --urls http://0.0.0.0:5088
-```
+## Development and checks
 
-Swagger: http://127.0.0.1:5088/swagger  
-Health: http://127.0.0.1:5088/health
+Install web dependencies with `npm --prefix web ci`. Run the API with environment variables from your private `.env`, then `dotnet run --project server/FieldSense.Api --urls http://127.0.0.1:49199`. Run the web UI with `npm --prefix web run dev`. The development UI uses that local API by default.
 
-Default admin (change in production):
-
-- Email: `admin@ndorbit.co.nz` (`FieldSense__AdminEmail`)
-- Password: `ChangeMeAdmin!` (`FieldSense__AdminPassword`) — required **in addition** to OTP when that email signs in
-- ACS mock on by default (`FieldSense__AcsMock=true`) — OTP printed in API logs / returned as `debugCode`
-
-### 2. Web
-
-```bash
-cd web
-npm install
-npm run dev
+```powershell
+dotnet build server/FieldSense.Api
+npm --prefix web run build
+python scripts/verify-membership.py
+python scripts/verify-billing.py
+python -m unittest discover -s scripts -p test_deployment_env.py
 ```
 
-App: [http://127.0.0.1:43123](http://127.0.0.1:43123)
+Membership verification runs against disposable local databases with simulated email delivery. It tests legacy migration, account permissions, combined/concurrent quota enforcement, retry safety, expiry, plan renewal, usage history, sign-in and restart persistence. It sends no actual email or SMS.
 
-Set `VITE_API_BASE` if the API is not on `http://127.0.0.1:5088`.
+## Android
 
-### 3. Android phone (Iran)
+Version **2.2.1 (8)** uses the same signing certificate as the previous published APK. Download the current build from the portal's My phone tab, or https://darvazeh.daryajan.com/Darvazeh-SMS.apk?v=2.2.1.
 
-1. Web → **Device** → generate device token  
-2. Install companion APK (`android-companion`, minSdk 24)  
-3. Paste API base URL + token → Relay on  
-4. Keep SMS + battery exemptions granted  
+Build with Node/npm, Java 21 and Android SDK 36:
 
-See `android-companion/README.md`.
-
-## Auth model
-
-- **Everyone**: email login with OTP via Azure Communication Services Email  
-- **Admin**: email listed in `.env` / `FieldSense__AdminEmail` must also enter `FieldSense__AdminPassword` after OTP  
-- **Users**: OTP only; **Send via Iran phone** appears only after admin grants relay  
-
-## User features
-
-- Inbox of inbound + outbound SMS for their paired device  
-- Optional **forward inbound SMS to email** (ACS)  
-- Pair Android device token  
-- Send SMS (queued → phone → `SmsManager`) when `CanRelaySms` is true  
-
-## Admin APIs
-
-- `GET /api/admin/users`  
-- `PUT /api/admin/users/{id}/relay` `{ "canRelaySms": true }`  
-- `GET /api/admin/stats`  
-
-## Device agent APIs
-
-Header: `X-Device-Token: <token>`
-
-- `POST /api/device/heartbeat`  
-- `POST /api/device/inbound-sms` `{ "from", "body", "receivedAt?" }`  
-- `GET /api/device/outbound/pending`  
-- `POST /api/device/outbound/{jobId}/result` `{ "status": "sent"|"failed", "error?" }`  
-
-## ACS configuration
-
-```bash
-export FieldSense__AcsMock=false
-export FieldSense__AcsConnectionString='endpoint=https://....;accesskey=...'
-export FieldSense__AcsSenderAddress='DoNotReply@your-verified-domain'
-export FieldSense__AdminEmail='you@example.com'
-export FieldSense__AdminPassword='strong-secret'
-export FieldSense__JwtKey='long-random-secret-at-least-32-chars'
-export FieldSense__CorsOrigin='http://127.0.0.1:43123,https://your-web-host'
+```powershell
+cd android-companion
+npm ci
+npx cap sync android
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+# Windows desktop process workaround for the Java NIO selector:
+$env:JAVA_TOOL_OPTIONS = '-Djava.nio.channels.spi.SelectorProvider=sun.nio.ch.WindowsSelectorProvider'
+./android/gradlew.bat -p android --no-daemon --max-workers=2 assembleDebug
 ```
 
-## Legacy v1.0
+Publish `android/app/build/outputs/apk/debug/app-debug.apk` to `web/public/Darvazeh-SMS.apk` before building the web image. Check certificate continuity before replacing a published APK. Device permissions, SMS dispatch and OEM background behavior still require verification on a real SIM-bearing phone.
 
-Checkout tag `v1.0` for the original Next.js sensor demo + Gmail SMTP Android forwarder.
+## Deployment
 
-## Deploy (Docker + Kubernetes)
+Deployment uses Kubernetes context `ravand`, namespace **`darvazeh`**, with both application pods pinned to **`ravand-worker-01`**. The existing Hamafarin worker Caddy serves the public hostnames.
 
-See **[deploy/README.md](deploy/README.md)** for Docker Hub build/push, Helm-less YAML under namespace `sms-forwarder`, and laptop scripts that SSH to `helsinki-server`.
+The root `.env` is the source for application settings and scoped Kubernetes Secrets. It is excluded from image build contexts and version control. See [deployment instructions](deploy/README.md) and [image provenance](docs/branding-image.md).
 
-```bash
-export DOCKERHUB_USERNAME=yourdockerhub
-export IMAGE_TAG=v2.0.0
-./scripts/build-and-push.sh
-./scripts/deploy.sh apply --ssh helsinki-server --skip-ingress
-# later image rolls:
-./scripts/deploy.sh set-image --tag v2.0.0
+```powershell
+python scripts/deployment-env.py check
+python scripts/backup-database.py
+./scripts/build-and-push.ps1 -Tag your-release-tag
+./scripts/deploy.ps1 apply -Local -Tag your-release-tag
 ```
 
-GitHub Actions: `.github/workflows/docker-build-push.yml` and `deploy-k8s.yml` (add Docker Hub / kube or SSH secrets).
+Take a verified database backup before any schema upgrade. The backup helper uses SQLite's online backup API on the worker, checks integrity, retains an off-node copy under ignored `.local/backups/`, and verifies matching SHA-256 values.
+
+## Payments and business setup
+
+Business: **Niliarya Limited**, trading as **ND ORBIT**, New Zealand.
+Read the [Stripe account and integration setup guide](docs/stripe-setup.md).
+
+In Administration, existing plans (including Silver) have editable USD and toman
+price fields and a customer-purchase switch. Silver is USD 5 for 30 days / 200
+messages; its toman price is not yet set. Enter USD in dollars; it is stored
+as integer cents. Enter toman as a whole number. Empty prices are unavailable,
+not free offers. No conversion rate or paid plan price is invented automatically.
+The three-day trial remains free.
+
+Stripe uses server-created, one-time Checkout Sessions. Amounts and entitlements
+are snapshotted on each order, signatures are checked on raw webhook requests,
+provider payment details are retrieved before fulfillment, and fulfillment is
+idempotent. Payment history and refunds are persisted. Fully refunded periods
+are expired or removed from the queue. Existing administrator feature restrictions
+remain in effect after a purchase.
+
+The current deployment leaves Stripe disabled until root `.env` has the account's
+secret API key, webhook signing secret and `Billing__StripeEnabled=true`. No live
+payment or real card was used during local protocol-fixture verification. A Stripe
+sandbox end-to-end test is required after connecting your account.
+
+## Browser-approved phones and health (2.2.0)
+
+On Android, enter the account email and wait. Sign into that account on the website
+with email OTP, compare the six-digit connection code, then approve or reject the
+phone. Link requests expire after ten minutes. Changing email stops the old local
+connection and revokes its server token; the new email owner must approve again.
+Existing installed versions continue to work, but update to 2.2.0 for health reports.
+
+Every device API request from 2.2.0 includes battery percentage, charging state,
+network type/validation, SMS permissions and battery-optimization exemption. Incoming
+messages and outgoing delivery results keep battery/network snapshots. Forwarded
+emails include the same health footer. SMS bodies sent to recipients stay unchanged.
+The foreground service checks in roughly every 12 seconds after its last response;
+a server worker checks every 30 seconds and records an offline alert after three
+minutes without contact. Offline means lost contact; the server cannot distinguish
+a dead battery, stopped app, and lost internet while the device cannot report.
+Low battery (20%), critical battery (10%), network and permission problems produce
+persistent, deduplicated alerts that resolve on recovery. Portal alerts are visible
+on all tabs; optional browser notifications work while the page is open. This release
+does not provide closed-browser push or automatic alert emails.
+
+| Plan | Period | Total SMS messages | Email forwards | USD |
+| --- | --- | --- | --- | --- |
+| Trial | 3 days | 20 | 20 | Free |
+| Silver | 30 days | 200 | 10 | $2.50 |
+| Gold | 30 days | 200 | 200 | $3.50 |
+
+Forwarding counts independently from the SMS allowance. At its cap, incoming messages
+still reach the web inbox; no additional email is sent. Definitive email send failures
+release the email reservation; interrupted pending sends remain conservatively counted.
+Existing payment amounts and purchased SMS-period snapshots are preserved. This
+version applies the requested forwarding allowance to existing Silver periods and
+counts historical forwarded messages before enforcing it. Existing trials retain
+original start/expiry dates but use the new 20-message cap. Prices remain editable.
+
+Verify with `python scripts/verify-device-links.py`, `python scripts/verify-membership.py`
+and `python scripts/verify-billing.py`; all use private local fixtures without real mail,
+SMS or card charges.
+
+## Password access and email diagnostics
+
+The portal supports immediate email/password signup with email verification before trial activation, and sign-in with username/email plus password,
+with email-code login still available. Existing users can set a password from
+Settings after confirming their email. Password reset revokes old web sessions.
+Administrator password sign-in works without email by default. Administration can enforce OTP for future logins; legacy email-code login retains its extra owner credential.
+
+Email codes and SMS copies now use a durable, encrypted queue with separate workers,
+retry tracking and provider-operation polling. Administration → Email sending status
+shows queued/accepted/submitted/failed outcomes; submitted is not proof of recipient
+inbox arrival. See [the investigation and operating notes](docs/email-and-password-auth-20261113.md).
+
+Google sign-in setup and current password/reset requirements: [operator guide](docs/google-login-setup.md). Google remains disabled until its `.env` credentials are supplied.
+
+Signup now uses email and matching passwords without a separate user ID/username.
+New passwords must be longer than eight characters (9–128); existing usernames and
+passwords remain valid for sign-in. Signup creates an unverified account immediately; Google or email-code verification activates the trial.
+Current Persian tagline: «دروازه ای برای ارتباطات شما» across portal, OTP email and
+Android 2.2.1. The APK keeps the published signing certificate.
+
+Account activation and profile password behavior: [deployment notes](docs/account-activation-20261113.md).
+
+Administrator access, user/device controls and searchable message history: [operator notes](docs/admin-and-message-management-20261113.md).

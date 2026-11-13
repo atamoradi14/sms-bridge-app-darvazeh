@@ -10,6 +10,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+if [[ "${DARVAZEH_ENV_LOADED:-}" != 1 ]]; then
+  exec python3 "$ROOT/scripts/deployment-env.py" run -- bash "$0" "$@"
+fi
 
 DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME:-${DOCKER_USER:-}}"
 IMAGE_TAG="${IMAGE_TAG:-${TAG:-latest}}"
@@ -49,6 +52,7 @@ echo "==> Tag: ${IMAGE_TAG}"
 echo "==> Platform: ${PLATFORM}"
 
 if [[ "$PUSH" -eq 1 ]]; then
+  python3 "$ROOT/scripts/deployment-env.py" check --build-only
   if ! docker info >/dev/null 2>&1; then
     echo "Docker daemon not reachable." >&2
     exit 1

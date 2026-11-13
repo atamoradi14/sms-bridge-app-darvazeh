@@ -1,605 +1,956 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { api, API_BASE, usesSampleData, type Device, type Message, type User } from "./api";
-import { loadLang, saveLang, t, type Lang, type MsgKey } from "./i18n";
-
-type Tab = "inbox" | "send" | "device" | "settings" | "admin";
-
-const PAGE_SIZE = 8;
-
-function applyDocumentLang(lang: Lang) {
-  document.documentElement.lang = lang;
-  document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
-  document.title = "دروازه";
-}
-
-/** Prefer readable IPv4 when present; otherwise keep a wrapped IPv6. */
-function formatIp(raw?: string | null): string {
-  if (!raw) return "—";
-  const v4 = raw.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
-  if (v4) return v4[0];
-  return raw.replace(/^::ffff:/i, "");
-}
-
-function formatWhen(iso: string, lang: Lang) {
-  return new Date(iso).toLocaleString(lang === "fa" ? "fa-IR" : "en-NZ", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
+import {MessageHistory} from "./MessageHistory";
+import {AdminSecurity,AdminCreateUser,AdminAccountControls} from "./AdminAccounts";
+import {VerifyEmailBanner,ProfileSecurity} from "./AccountSecurity";
+import {GoogleLogin} from "./GoogleLogin";
+import {PasswordAccess,EmailDiagnostics} from "./PasswordAccess";
+import {Phones} from "./Phones";
+import { BillingPanel, PlanManager, AdminPayments } from "./Billing";
+import { useEffect, useState, type FormEvent } from "react";
+import {
+  api,
+  RequestError,
+  type User,
+  type AdminUser,
+  type Plan,
+  type Activity,
+  type Stats,
+} from "./api";
+import { loadLang, saveLang, type Lang } from "./i18n";
+type Tab = "inbox" | "send" | "device" | "settings" | "membership" | "admin";
+const digits = (s: string) =>
+  s.replace(/[۰-۹٠-٩]/g, (c) =>
+    String(c.charCodeAt(0) - (c >= "۰" ? 1776 : 1632)),
+  );
 export default function App() {
-  const [lang, setLang] = useState<Lang>(() => loadLang());
-  const [token, setToken] = useState(() => api.getToken());
+  const [lang, setLang] = useState<Lang>(loadLang);
+  const [token, setToken] = useState(api.getToken);
+  const [googleReturn,setGoogleReturn]=useState(()=>new URLSearchParams(location.hash.slice(1)).has("google_code"));
   const [user, setUser] = useState<User | null>(null);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [tab, setTab] = useState<Tab>("inbox");
+  const [tab, setTab] = useState<Tab>(() =>
+    new URLSearchParams(location.search).has("payment")
+      ? "membership"
+      : "inbox",
+  );
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
-  const [needAdminPassword, setNeedAdminPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [usePassword,setUsePassword] = useState(true);
   const [otpSent, setOtpSent] = useState(false);
-  const [debugCode, setDebugCode] = useState<string | null>(null);
-  const [otpHint, setOtpHint] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const sample = usesSampleData();
+  const [countdown, setCountdown] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inboxPage, setInboxPage] = useState(0);
-  const [toNumber, setToNumber] = useState("");
-  const [smsBody, setSmsBody] = useState("");
-  const [forwardOn, setForwardOn] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [to, setTo] = useState("");
+  const [body, setBody] = useState("");
+  const [forward, setForward] = useState(false);
   const [forwardEmail, setForwardEmail] = useState("");
-  const [adminUsers, setAdminUsers] = useState<
-    Array<{ id: string; email: string; role: string; canRelaySms: boolean; deviceCount: number }>
-  >([]);
-
-  const tr = (key: MsgKey) => t(lang, key);
-  const isAdmin = user?.role === "Admin";
-  const canSend = !!(user?.canRelaySms || isAdmin || devices.length > 0);
-  const inboxPages = Math.max(1, Math.ceil(messages.length / PAGE_SIZE));
-  const pageSafe = Math.min(inboxPage, inboxPages - 1);
-  const pageMessages = messages.slice(pageSafe * PAGE_SIZE, pageSafe * PAGE_SIZE + PAGE_SIZE);
-
-  useEffect(() => {
-    applyDocumentLang(lang);
-    saveLang(lang);
-  }, [lang]);
-
-  async function refresh() {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [search, setSearch] = useState("");
+  const tr = (fa: string, en: string) => (lang === "fa" ? fa : en);
+  const date = (value: string) =>
+    new Date(value).toLocaleString(lang === "fa" ? "fa-IR" : "en-NZ", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  const planName = (s: User["subscription"]) =>
+    !user?.emailVerified && user ? tr("در انتظار تأیید", "Awaiting verification") : s.planCode === "trial" ? tr("آزمایشی", "Trial") : s.planName;
+  const fail = (e: unknown) => {
+    const r = e as RequestError;
+    setError(
+      r.code === "connection"
+        ? tr(
+            "اتصال برقرار نشد. اینترنت را بررسی کنید.",
+            "Couldn’t connect. Check your connection and try again.",
+          )
+        : [
+              "subscription_expired",
+              "feature_disabled",
+              "message_limit_reached",
+            ].includes(r.code || "")
+          ? tr(
+              "اشتراک یا ظرفیت پیام‌های شما اجازه این کار را نمی‌دهد.",
+              "Your plan or remaining allowance doesn’t permit this action.",
+            )
+          : tr(
+              r.message || "دوباره تلاش کنید.",
+              "We couldn’t complete that request. Check your details and try again.",
+            ),
+    );
+  };
+  async function adminRefresh() {
+    const [u, p, a, s] = await Promise.all([
+      api.adminUsers(),
+      api.plans(),
+      api.activities(),
+      api.adminStats(),
+    ]);
+    setUsers(u);
+    setPlans(p);
+    setActivities(a);
+    setStats(s);
+  }
+  async function refresh(admin = false) {
     const me = await api.me();
     setUser(me);
-    setDevices(me.devices || []);
-    setForwardOn(me.forwardEmailEnabled);
-    setForwardEmail(me.forwardEmailAddress || me.email);
-    const msgs = await api.messages();
-    setMessages(msgs);
-    if (me.role === "Admin") setAdminUsers(await api.adminUsers());
-  }
 
+    if (admin && me.role === "Admin") await adminRefresh();
+    return me;
+  }
+  useEffect(()=>{
+    const params=new URLSearchParams(location.hash.slice(1));
+    const code=params.get("google_code"),flow=params.get("google_flow"),problem=params.get("google_error");
+    if(!code&&!problem)return;
+    history.replaceState({},"",location.pathname+location.search);
+    const googleFailure=(reason:string)=>setError(({
+      admin_password_required: tr("برای ورود مدیر از ورود با رمز استفاده کنید.","Administrators must use password sign-in."),
+      admin_otp_required: tr("برای ورود مدیر از ورود با رمز استفاده کنید.","Administrators must use password sign-in."),
+      account_deleted: tr("حساب قبلی حذف شده است. برای ساخت حساب تازه، دوباره با گوگل ادامه دهید.","The previous account was deleted. Continue with Google again to create a fresh account."),
+      account_suspended: tr("این حساب توسط مدیر تعلیق شده است. برای رفع تعلیق با مدیر تماس بگیرید.","This account is suspended. Contact the administrator to resume access."),
+      verify_email: tr("برای این نشانی، از کد تأیید ایمیل استفاده کنید.","Use an email verification code for this address."),
+      account_conflict: tr("این ایمیل به حساب گوگل دیگری متصل است. برای بررسی با مدیر تماس بگیرید.","This email is linked to another Google identity. Contact the administrator."),
+      invalid_state: tr("درخواست ورود منقضی یا نامعتبر است. دوباره روی ادامه با گوگل بزنید.","This sign-in request expired or is invalid. Choose Continue with Google again."),
+    } as Record<string,string>)[reason]||tr("ورود گوگل کامل نشد. دوباره تلاش کنید یا از روش دیگری وارد شوید.","Google sign-in did not complete. Try again or use another sign-in method."));
+    if(problem){googleFailure(problem);setGoogleReturn(false);return;}
+    if(!code||!flow){googleFailure("invalid_response");setGoogleReturn(false);return;}
+    api.googleExchange(flow,code).then(result=>{api.setToken(result.token);setToken(result.token);}).catch(()=>googleFailure("exchange_failed")).finally(()=>setGoogleReturn(false));
+  },[]);
   useEffect(() => {
-    if (!token) return;
-    refresh().catch((e) => setError(e.message));
-    const id = setInterval(() => {
-      api.messages().then(setMessages).catch(() => undefined);
-    }, 8000);
-    return () => clearInterval(id);
-  }, [token]);
-
-  async function onRequestOtp(e: FormEvent) {
-    e.preventDefault();
+    saveLang(lang);
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
+    document.title = lang === "fa" ? "دروازه | Darvazeh" : "Darvazeh";
+  }, [lang]);
+  useEffect(() => {
+    if (!token || googleReturn) return;
+    let active = true;
+    refresh(true)
+      .then((me) => {
+        if (active) {
+          setForward(me.forwardEmailEnabled);
+          setForwardEmail(me.forwardEmailAddress || me.email);
+        }
+      })
+      .catch((e) => {
+        if (e.status === 401) {
+          api.setToken(null);
+          setToken(null);
+        } else fail(e);
+      });
+    const timer = setInterval(() => refresh().catch(() => {}), 8000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [token,googleReturn]);
+  useEffect(() => {
+    if (!countdown) return;
+    const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
+  async function action(fn: () => Promise<unknown>, success = "") {
     setBusy(true);
-    setError(null);
-    setDebugCode(null);
-    setOtpHint(null);
+    setError("");
+    setNotice("");
     try {
-      const res = await api.requestOtp(email);
+      await fn();
+      if (success) setNotice(success);
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function requestCode(e?: FormEvent) {
+    e?.preventDefault();
+    await action(async () => {
+      await api.requestOtp(email.trim());
       setOtpSent(true);
-      if (import.meta.env.DEV) setDebugCode(res.debugCode ?? null);
-      const detail = res.detail || "";
-      const mockHint =
-        /000000|mock/i.test(detail) || sample ? tr("sampleOtpHint") : detail;
-      setOtpHint(mockHint || detail);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
+      setCountdown(45);
+    });
   }
-
-  async function onVerify(e: FormEvent) {
+  async function verify(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api.verifyOtp(
-        email,
-        code,
-        needAdminPassword ? adminPassword : undefined,
+    await action(async () => {
+      const r = await api.verifyOtp(
+        email.trim(),
+        digits(code),
+        password || undefined,
       );
-      api.setToken(res.token);
-      setToken(res.token);
-      setUser(res.user);
-      setNeedAdminPassword(false);
-    } catch (err) {
-      const e2 = err as Error & { needAdminPassword?: boolean };
-      if (e2.needAdminPassword) {
-        setNeedAdminPassword(true);
-        setError(tr("adminPassHint"));
-      } else {
-        setError(e2.message);
-      }
-    } finally {
-      setBusy(false);
-    }
+      api.setToken(r.token);
+      setToken(r.token);
+      setCode("");
+      setPassword("");
+    });
   }
-
   function logout() {
     api.setToken(null);
     setToken(null);
     setUser(null);
-    setDevices([]);
     setOtpSent(false);
-    setCode("");
+    setTab("inbox");
+    setError("");
+    setNotice("");
   }
-
-  function LangSwitch() {
+  const switcher = (
+    <div className="lang-switch" aria-label="Language">
+      <button
+        type="button"
+        className={lang === "fa" ? "selected" : ""}
+        onClick={() => setLang("fa")}
+      >
+        فارسی
+      </button>
+      <button
+        type="button"
+        className={lang === "en" ? "selected" : ""}
+        onClick={() => setLang("en")}
+      >
+        English
+      </button>
+    </div>
+  );
+  const brand = (
+    <a className="brand-lockup" href="/" aria-label="Darvazeh">
+      <img src="/darvazeh-mark.svg" alt="" />
+      <span>
+        <strong>{tr("دروازه", "Darvazeh")}</strong>
+        <small>{tr("DARVAZEH", "دروازه")}</small>
+      </span>
+    </a>
+  );
+  const alerts = (
+    <>
+      {error && (
+        <div className="alert error" role="alert">
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className="alert success" role="status">
+          {notice}
+        </div>
+      )}
+    </>
+  );
+  if(googleReturn)return <main className="login-shell"><section className="login-card"><h1>{tr("در حال ورود با گوگل…","Completing Google sign-in…")}</h1><p role="status">{tr("چند لحظه صبر کنید.","Please wait a moment.")}</p></section></main>;
+  if (!token || !user)
     return (
-      <div className="lang-switch">
-        <button
-          type="button"
-          className={`lang-btn ${lang === "fa" ? "active" : ""}`}
-          onClick={() => setLang("fa")}
-        >
-          {tr("langFa")}
-        </button>
-        <button
-          type="button"
-          className={`lang-btn ${lang === "en" ? "active" : ""}`}
-          onClick={() => setLang("en")}
-        >
-          {tr("langEn")}
-        </button>
-      </div>
-    );
-  }
-
-  const tabs = useMemo(() => {
-    const list: { id: Tab; label: MsgKey }[] = [
-      { id: "inbox", label: "inbox" },
-      { id: "send", label: "send" },
-      { id: "device", label: "device" },
-      { id: "settings", label: "settings" },
-    ];
-    if (isAdmin) list.push({ id: "admin", label: "admin" });
-    return list;
-  }, [isAdmin]);
-
-  if (!token || !user) {
-    return (
-      <div className="app-shell">
-        <header className="hero-gate">
-          <LangSwitch />
-          <div className="hero-inner">
-            <h1 className="brand">{tr("brand")}</h1>
-            <p className="tagline">{tr("tagline")}</p>
+      <main className="login-shell">
+        <section className="story-panel">
+          <div className="story-top">
+            {brand}
+            {switcher}
           </div>
-        </header>
-
-        <section className="card" style={{ maxWidth: 480, marginInline: "auto" }}>
-          <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)", fontSize: "1.55rem" }}>
-            {tr("loginTitle")}
-          </h2>
-          {sample ? (
-            <>
-              <span className="sample-chip">{tr("sampleMode")}</span>
-              <p className="muted">{tr("sampleBanner")}</p>
-            </>
-          ) : (
-            <p className="muted">{tr("loginAcs")}</p>
-          )}
-
-          {!otpSent ? (
-            <form onSubmit={onRequestOtp}>
-              <div className="field">
-                <label htmlFor="email">{tr("email")}</label>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  dir="ltr"
-                />
-              </div>
-              <div className="row" style={{ marginTop: "1rem" }}>
-                <button className="btn" disabled={busy} type="submit">
-                  {tr("sendCode")}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={onVerify}>
-              <div className="field">
-                <label htmlFor="code">{tr("otpLabel")}</label>
-                <input
-                  id="code"
-                  inputMode="numeric"
-                  required
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder={tr("otpPlaceholder")}
-                  dir="ltr"
-                />
-              </div>
-              {needAdminPassword && (
-                <div className="field">
-                  <label htmlFor="adminPass">{tr("adminPass")}</label>
-                  <input
-                    id="adminPass"
-                    type="password"
-                    required
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder={tr("adminPassHint")}
-                    dir="ltr"
-                  />
-                </div>
+          <div className="story-copy">
+            <p className="eyebrow">
+              {tr("همراه شما، از هر کجا", "YOUR MESSAGES, WHEREVER YOU ARE")}
+            </p>
+            <h1>
+              {tr(
+                "دروازه ای برای\nارتباطات شما",
+                "A familiar doorway.\nA world within reach.",
               )}
-              {import.meta.env.DEV && debugCode && (
-                <p className="mono muted">Dev: {debugCode}</p>
+            </h1>
+            <p>
+              {tr(
+                "الهام‌گرفته از دروازه‌های کاروانسراهای صفوی؛ جایی برای رسیدن، پیوند و آسودگی.",
+                "Inspired by the welcoming gateways of Safavid caravanserais. A place to arrive, connect, and feel at home.",
               )}
-              {otpHint && <p className="muted">{otpHint}</p>}
-              <div className="row" style={{ marginTop: "1rem" }}>
-                <button className="btn" disabled={busy} type="submit">
-                  {tr("signIn")}
-                </button>
-                <button className="btn ghost" type="button" onClick={() => setOtpSent(false)}>
-                  {tr("back")}
-                </button>
-              </div>
-            </form>
-          )}
-          {error && <div className="error">{error}</div>}
-          <p className="muted" style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
-            {tr("api")}:{" "}
-            <span className="mono" dir="ltr">
-              {API_BASE || tr("sampleMode")}
-            </span>
-          </p>
+            </p>
+          </div>
+          <img
+            className="caravanserai"
+            src="/caravanserai-gateway.png"
+            alt={tr(
+              "تصویر معماری دروازه کاروانسرا، با آجرهای گرم و کاشی فیروزه‌ای",
+              "Caravanserai gateway with warm brick and turquoise tile",
+            )}
+          />
+          <span className="image-caption">
+            {tr(
+              "فاصله‌ها می‌گذرند؛ پیوندها می‌مانند.",
+              "Distances change. Connections stay.",
+            )}
+          </span>
         </section>
-      </div>
+        <section className="login-side">
+          <div className="login-card">
+            <span className="step-label">
+              {tr("خوش آمدید", "WELCOME TO DARVAZEH")}
+            </span>
+            <h2>
+              {token
+                ? tr("در حال باز کردن صندوق…", "Opening your inbox…")
+                : usePassword ? tr("به دروازه خوش آمدید", "Welcome to Darvazeh") : otpSent
+                  ? tr("ایمیل‌تان را بررسی کنید", "Check your email")
+                  : tr("از همین‌جا وارد شوید", "Your doorway starts here")}
+            </h2>
+            {!usePassword && <p className="muted">
+              {otpSent
+                ? tr(
+                    "کد شش‌رقمی در صف ارسال به نشانی زیر است.",
+                    "Your six-digit code is queued for the address below.",
+                  )
+                : tr(
+                    "ایمیل‌تان را وارد کنید تا کد ورود را برایتان بفرستیم.",
+                    "Enter your email and we’ll send you a sign-in code.",
+                  )}
+            </p>}
+            {!token && usePassword ? <PasswordAccess lang={lang} onSignedIn={value=>{api.setToken(value);setToken(value);}} onUseOtp={()=>{setUsePassword(false);setError("");}}/> : !token &&
+              (!otpSent ? (
+                <form onSubmit={requestCode}>
+                  <label htmlFor="email">{tr("ایمیل", "Email address")}</label>
+                  <input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    dir="ltr"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+                  <button className="btn full" disabled={busy} type="submit">
+                    {busy
+                      ? tr("در حال ارسال…", "Sending…")
+                      : tr("دریافت کد ورود", "Send sign-in code")}
+                    <span aria-hidden="true">↗</span>
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={verify}>
+                  <p className="email-address" dir="ltr">
+                    {email}
+                  </p>
+                  <label htmlFor="code">{tr("کد ورود", "Sign-in code")}</label>
+                  <input
+                    className="otp-input"
+                    id="code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    required
+                    value={code}
+                    onChange={(e) =>
+                      setCode(digits(e.target.value).replace(/\D/g, ""))
+                    }
+                    placeholder="— — — — — —"
+                    dir="ltr"
+                    autoFocus
+                  />
+                  {email.trim().toLowerCase() === "admin@ndorbit.co.nz" && (
+                    <>
+                      <label htmlFor="admin-password">
+                        {tr("رمز مدیریت", "Administrator password")}
+                      </label>
+                      <input
+                        id="admin-password"
+                        type="password"
+                        autoComplete="current-password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        dir="ltr"
+                      />
+                    </>
+                  )}
+                  <p className="hint">
+                    {tr(
+                      "کد تا ۱۰ دقیقه معتبر است.",
+                      "Your code expires in 10 minutes.",
+                    )}
+                  </p>
+                  <button
+                    className="btn full"
+                    type="submit"
+                    disabled={busy || code.length !== 6}
+                  >
+                    {busy
+                      ? tr("کمی صبر کنید…", "One moment…")
+                      : tr("ورود به دروازه", "Enter Darvazeh")}
+                  </button>
+                  <div className="row between">
+                    <button
+                      className="text-button"
+                      type="button"
+                      onClick={() => {
+                        setOtpSent(false);
+                        setError("");
+                      }}
+                    >
+                      {tr("تغییر ایمیل", "Change email")}
+                    </button>
+                    <button
+                      className="text-button"
+                      type="button"
+                      disabled={busy || countdown > 0}
+                      onClick={() => requestCode()}
+                    >
+                      {countdown > 0
+                        ? `${tr("ارسال دوباره تا", "Resend in")} ${countdown}s`
+                        : tr("ارسال دوباره کد", "Resend code")}
+                    </button>
+                  </div>
+                </form>
+              ))}
+            {!usePassword && <button type="button" className="text-button" onClick={()=>{setUsePassword(true);setOtpSent(false);setError("");}}>{tr("ورود با نام کاربری و رمز", "Use username and password")}</button>}
+            {!token && <GoogleLogin lang={lang}/>}
+            {alerts}
+            <div className="trial-note">
+              <img src="/darvazeh-mark.svg" alt="" />
+              <div>
+                <strong>
+                  {tr(
+                    "سه روز مهمان دروازه باشید",
+                    "Three days to feel at home",
+                  )}
+                </strong>
+                <p>
+                  {tr(
+                    "۲۰ پیام برای ارسال و دریافت، با همه امکانات آغازین.",
+                    "20 messages across sending and receiving. Both features included.",
+                  )}
+                </p>
+              </div>
+            </div>
+            <p className="privacy-note">
+              {tr(
+                "کد ورودتان را فقط در دروازه وارد کنید.",
+                "Only enter your sign-in code in Darvazeh.",
+              )}
+            </p>
+          </div>
+        </section>
+      </main>
     );
-  }
-
-  const roleLabel = user.role === "Admin" ? tr("roleAdmin") : tr("roleUser");
-
+  const sub = user.subscription;
+  const devices = (user.devices || []).filter(d => !d.revokedAt);
+  const isAdmin = user.role === "Admin";
+  const labels: Record<Tab, string> = {
+    inbox: tr("صندوق پیام‌ها", "Inbox"),
+    send: tr("نوشتن پیام", "Compose"),
+    device: tr("گوشی من", "My phone"),
+    settings: tr("تنظیمات", "Settings"),
+    membership: tr("اشتراک من", "My membership"),
+    admin: tr("مدیریت", "Administration"),
+  };
+  const activity = (s: string) =>
+    ({
+      signed_in: tr("ورود به حساب", "Signed in"),
+      account_created_by_admin: tr("ساخت کاربر توسط مدیر", "User created by administrator"),
+      account_modified: tr("ویرایش کاربر", "User updated"),
+      account_suspended: tr("تعلیق حساب", "Account suspended"),
+      account_resumed: tr("رفع تعلیق حساب", "Account resumed"),
+      account_deleted: tr("حذف حساب", "Account deleted"),
+      device_paused: tr("توقف اتصال گوشی", "Phone connection paused"),
+      device_resumed: tr("ازسرگیری اتصال گوشی", "Phone connection resumed"),
+      messages_deleted: tr("حذف تاریخچه پیام", "Message history deleted"),
+      admin_login_policy_updated: tr("تغییر امنیت ورود مدیر", "Administrator login policy updated"),
+      trial_started: tr("آغاز دوره آزمایشی", "Trial started"),
+      subscription_assigned: tr("فعال‌سازی اشتراک", "Membership activated"),
+      features_updated: tr("تغییر دسترسی‌ها", "Feature access changed"),
+      plan_created: tr("ساخت طرح", "Plan created"),
+      plan_updated: tr("ویرایش طرح و قیمت", "Plan and pricing updated"),
+      payment_confirmed: tr("تأیید پرداخت", "Payment confirmed"),
+      paid_membership_activated: tr(
+        "شروع دوره خریداری‌شده",
+        "Purchased period activated",
+      ),
+      payment_refunded: tr("بازپرداخت", "Payment refunded"),
+      message_received: tr("دریافت پیام", "Message received"),
+      message_queued: tr("ثبت پیام برای ارسال", "Message queued"),
+      message_sent: tr("ارسال پیام", "Message sent"),
+      message_failed: tr("ارسال ناموفق", "Message failed"),
+    })[s] || tr("فعالیت حساب", "Account activity");
   return (
     <div className="app-shell">
-      <header className="hero-gate hero-app">
-        <div className="app-top">
-          <div className="app-top-main">
-            <p className="brand-sm">{tr("brand")}</p>
-            <p className="app-user" dir="ltr">
-              {user.email}
-              <span> · {roleLabel}</span>
-              {canSend ? <span> · {tr("relayOn")}</span> : null}
-            </p>
-          </div>
-          <div className="app-top-actions">
-            <LangSwitch />
-            <button className="btn ghost btn-signout" type="button" onClick={logout}>
-              {tr("signOut")}
-            </button>
-          </div>
+      <header className="app-header">
+        {brand}
+        <div className="account-tools">
+          {switcher}
+          <button className="text-button" onClick={logout}>
+            {tr("خروج", "Sign out")}
+          </button>
         </div>
       </header>
-
-      <nav className="tabs">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            className={`tab ${tab === item.id ? "active" : ""}`}
-            onClick={() => setTab(item.id)}
-            type="button"
-          >
-            {tr(item.label)}
-          </button>
-        ))}
-      </nav>
-
-      {error && <div className="error">{error}</div>}
-
-      {tab === "inbox" && (
-        <section className="card">
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0, fontFamily: "var(--font-display)" }}>{tr("inbox")}</h2>
+      {!user.emailVerified && <VerifyEmailBanner lang={lang} onVerified={async()=>{await refresh();setNotice(tr("ایمیل تأیید و حساب فعال شد.","Email verified and account activated."));}}/>}
+      <div className="welcome-row">
+        <div>
+          <p className="eyebrow">{tr("به دروازه خوش آمدید", "WELCOME HOME")}</p>
+          <h1>{labels[tab]}</h1>
+          <p className="muted account-email" dir="ltr">
+            {user.email}
+          </p>
+        </div>
+        <button
+          className="membership-pill"
+          onClick={() => setTab("membership")}
+        >
+          {planName(sub)} · {sub.remainingMessages}{" "}
+          {tr("پیام باقی‌مانده", "messages left")}
+        </button>
+      </div>
+      <nav
+        className="tabs"
+        aria-label={tr("بخش‌های حساب", "Account navigation")}
+      >
+        {(Object.keys(labels) as Tab[])
+          .filter((t) => t !== "admin" || isAdmin)
+          .map((t) => (
             <button
-              className="btn secondary"
-              type="button"
-              onClick={() => refresh().catch((e) => setError(e.message))}
-            >
-              {tr("refresh")}
-            </button>
-          </div>
-          <p className="muted">{tr("inboxLead")}</p>
-          {messages.length === 0 && <p className="muted">{tr("noMessages")}</p>}
-          <div className="msg-list">
-            {pageMessages.map((m) => {
-              const inbound = m.direction === "inbound";
-              return (
-                <article key={m.id} className={`msg-card ${inbound ? "in" : "out"}`}>
-                  <div className="msg-meta">
-                    <span className={`badge ${inbound ? "in" : "out"}`}>
-                      {inbound ? tr("inbound") : tr("outbound")}
-                    </span>
-                    <div className="msg-peer">
-                      <span className="msg-peer-label">
-                        {inbound ? tr("fromLabel") : tr("toLabel")}
-                      </span>
-                      <strong className="mono" dir="ltr">
-                        {m.peerNumber || "—"}
-                      </strong>
-                    </div>
-                    <time className="msg-time mono" dir="ltr" dateTime={m.createdAt}>
-                      {tr("dateLabel")}: {formatWhen(m.createdAt, lang)}
-                    </time>
-                  </div>
-                  <p className="msg-body">{m.body}</p>
-                  <p className="msg-status muted">
-                    {m.status}
-                    {m.emailForwarded ? ` · ${tr("emailed")}` : ""}
-                  </p>
-                </article>
-              );
-            })}
-          </div>
-          {messages.length > PAGE_SIZE && (
-            <div className="pager">
-              <button
-                className="btn secondary"
-                type="button"
-                disabled={pageSafe <= 0}
-                onClick={() => setInboxPage((p) => Math.max(0, p - 1))}
-              >
-                {tr("prevPage")}
-              </button>
-              <span className="muted">
-                {tr("pageOf")} {pageSafe + 1} / {inboxPages}
-              </span>
-              <button
-                className="btn secondary"
-                type="button"
-                disabled={pageSafe >= inboxPages - 1}
-                onClick={() => setInboxPage((p) => Math.min(inboxPages - 1, p + 1))}
-              >
-                {tr("nextPage")}
-              </button>
-            </div>
-          )}
-        </section>
-      )}
-
-      {tab === "send" && (
-        <section className="card">
-          <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>{tr("sendTitle")}</h2>
-          <p className="muted">{tr("sendLead")}</p>
-          {!canSend ? (
-            <p className="error" style={{ marginTop: "0.75rem" }}>
-              {tr("sendNeedRelay")}
-            </p>
-          ) : (
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setBusy(true);
-                setError(null);
-                try {
-                  await api.sendSms(toNumber, smsBody);
-                  setSmsBody("");
-                  setInboxPage(0);
-                  await refresh();
-                  setTab("inbox");
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : "Send failed");
-                } finally {
-                  setBusy(false);
-                }
+              key={t}
+              className={tab === t ? "active" : ""}
+              onClick={() => {
+                setTab(t);
+                setError("");
+                setNotice("");
+                if (t === "admin") action(adminRefresh);
               }}
             >
-              <div className="field">
-                <label htmlFor="to">{tr("toNumber")}</label>
-                <input
-                  id="to"
-                  required
-                  value={toNumber}
-                  onChange={(e) => setToNumber(e.target.value)}
-                  placeholder="+98912…"
-                  dir="ltr"
-                />
+              {labels[t]}
+            </button>
+          ))}
+      </nav>
+      {alerts}
+      {tab === "inbox" && <MessageHistory lang={lang}/>}
+      {tab === "send" && (
+        <section className="card narrow">
+          <h2>{tr("چند کلمه برای رسیدن", "A few words to connect")}</h2>
+          <p className="muted">
+            {tr(
+              "پیام از سیم‌کارت گوشی متصل شما فرستاده می‌شود. هزینه اپراتور جداگانه است.",
+              "Sent using your connected phone’s SIM. Your mobile operator’s charges apply separately.",
+            )}
+          </p>
+          {!sub.canSend ? (
+            <div className="alert">
+              {tr(
+                "ارسال پیام در حال حاضر فعال نیست. اشتراک و ظرفیت باقی‌مانده را بررسی کنید.",
+                "Sending is currently unavailable. Check your membership and remaining allowance.",
+              )}
+            </div>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                action(
+                  async () => {
+                    await api.sendSms(to, body, crypto.randomUUID());
+                    setBody("");
+                    await refresh();
+                    setTab("inbox");
+                  },
+                  tr("پیام برای ارسال ثبت شد.", "Your message is queued."),
+                );
+              }}
+            >
+              <label htmlFor="to">
+                {tr("شماره گیرنده", "Recipient number")}
+              </label>
+              <input
+                id="to"
+                type="tel"
+                required
+                maxLength={40}
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="+98912…"
+                dir="ltr"
+              />
+              <label htmlFor="body">{tr("پیام شما", "Your message")}</label>
+              <textarea
+                id="body"
+                required
+                maxLength={4000}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                dir="auto"
+              />
+              <div className="row between">
+                <span className="muted small">{body.length} / 4000</span>
+                <button className="btn" disabled={busy || !devices.length}>
+                  {tr("ارسال پیام", "Send message")}
+                </button>
               </div>
-              <div className="field">
-                <label htmlFor="body">{tr("message")}</label>
-                <textarea
-                  id="body"
-                  required
-                  value={smsBody}
-                  onChange={(e) => setSmsBody(e.target.value)}
-                />
-              </div>
-              <button className="btn" disabled={busy} type="submit" style={{ marginTop: "1rem" }}>
-                {tr("queueSms")}
-              </button>
+              {!devices.length && (
+                <p className="hint">
+                  {tr(
+                    "ابتدا گوشی‌تان را از بخش «گوشی من» وصل کنید.",
+                    "Connect a phone in My phone first.",
+                  )}
+                </p>
+              )}
             </form>
           )}
         </section>
       )}
-
-      {tab === "device" && (
-        <section className="card">
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0, fontFamily: "var(--font-display)" }}>{tr("deviceTitle")}</h2>
-            <button
-              className="btn secondary"
-              type="button"
-              onClick={() => refresh().catch((e) => setError(e.message))}
-            >
-              {tr("refresh")}
-            </button>
-          </div>
-          <p className="muted">{tr("deviceLead")}</p>
-
-          <div className="apk-panel">
-            <h3 style={{ margin: "0 0 0.35rem", fontFamily: "var(--font-display)", fontSize: "1.15rem" }}>
-              {tr("connectPhone")}
-            </h3>
-            <p className="muted" style={{ marginTop: 0 }}>
-              {tr("downloadApkHint")}
-            </p>
-            <a
-              className="btn"
-              href={`${import.meta.env.BASE_URL}Darvazeh-SMS.apk`}
-              download="Darvazeh-SMS.apk"
-            >
-              {tr("downloadApk")}
-            </a>
-          </div>
-
-          {devices.length === 0 && <p className="muted">{tr("noDevices")}</p>}
-          {devices.map((d) => (
-            <article key={d.id} className="device-card">
-              <div className="device-card-head">
-                <div>
-                  <strong>{d.name || d.deviceModel || tr("deviceTitle")}</strong>
-                  <div style={{ marginTop: "0.35rem" }}>
-                    <span className={`badge ${d.isOnline ? "in" : "out"}`}>
-                      {d.isOnline ? tr("deviceOnline") : tr("deviceOffline")}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  className="btn danger"
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await api.removeDevice(d.id);
-                      await refresh();
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : "Remove failed");
-                    }
-                  }}
-                >
-                  {tr("removeDevice")}
-                </button>
-              </div>
-              <dl className="device-facts">
-                <div>
-                  <dt>{tr("phoneType")}</dt>
-                  <dd dir="ltr">{d.deviceModel || d.name || "Android"}</dd>
-                </div>
-                <div>
-                  <dt>{tr("platformLabel")}</dt>
-                  <dd dir="ltr">{d.platform || "android"}</dd>
-                </div>
-                <div>
-                  <dt>{tr("versionLabel")}</dt>
-                  <dd dir="ltr">{d.appVersion || "—"}</dd>
-                </div>
-                <div>
-                  <dt>{tr("ipLabel")}</dt>
-                  <dd className="ip-value" dir="ltr">
-                    {formatIp(d.lastIpAddress)}
-                  </dd>
-                </div>
-                {d.phoneNumber ? (
-                  <div>
-                    <dt>{tr("simLabel")}</dt>
-                    <dd dir="ltr">{d.phoneNumber}</dd>
-                  </div>
-                ) : null}
-                {d.lastSeenAt ? (
-                  <div>
-                    <dt>{tr("lastSeen")}</dt>
-                    <dd dir="ltr">{formatWhen(d.lastSeenAt, lang)}</dd>
-                  </div>
-                ) : null}
-              </dl>
-            </article>
-          ))}
-        </section>
-      )}
-
+      <Phones user={user} lang={lang} showDevices={tab === "device"} onChange={() => refresh()} />
       {tab === "settings" && (
-        <section className="card">
-          <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>{tr("settingsTitle")}</h2>
-          <p className="muted">{tr("settingsLead")}</p>
-          <label className="switch">
+        <section className="card narrow">
+          <h2>{tr("به سلیقه شما", "Make it yours")}</h2>
+          <p className="muted">
+            {tr(
+              "از پیام‌های دریافتی، یک نسخه در ایمیل‌تان داشته باشید.",
+              "Keep an email copy of incoming messages.",
+            )}
+          </p>
+          <p className="hint">{tr("ظرفیت ارسال ایمیل در این دوره", "Email forwards this period")}: {sub.usedEmailForwards} / {sub.emailForwardLimit}. {tr("با پایان ظرفیت ایمیل، پیام‌ها همچنان در صندوق وب ثبت می‌شوند.", "When email allowance runs out, messages still arrive in your web inbox.")}</p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              action(
+                () => api.updateSettings(forward, forwardEmail),
+                tr("تنظیمات ذخیره شد.", "Preferences saved."),
+              );
+            }}
+          >
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={forward}
+                onChange={(e) => setForward(e.target.checked)}
+              />
+              {tr(
+                "ارسال نسخه ایمیلی پیام‌ها",
+                "Email me a copy of incoming messages",
+              )}
+            </label>
+            <label htmlFor="forwardEmail">
+              {tr("نشانی ایمیل", "Email address")}
+            </label>
             <input
-              type="checkbox"
-              checked={forwardOn}
-              onChange={(e) => setForwardOn(e.target.checked)}
-            />
-            {tr("forwardToggle")}
-          </label>
-          <div className="field">
-            <label>{tr("forwardAddress")}</label>
-            <input
+              id="forwardEmail"
+              type="email"
+              required
               value={forwardEmail}
               onChange={(e) => setForwardEmail(e.target.value)}
               dir="ltr"
             />
-          </div>
-          <button
-            className="btn"
-            type="button"
-            style={{ marginTop: "1rem" }}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await api.updateSettings(forwardOn, forwardEmail);
-                await refresh();
-              } catch (err) {
-                setError(err instanceof Error ? err.message : "Save failed");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {tr("saveSettings")}
-          </button>
+            <button className="btn" disabled={busy}>
+              {tr("ذخیره تغییرات", "Save changes")}
+            </button>
+          </form>
         </section>
       )}
-
+      {tab === "settings" && <ProfileSecurity user={user} lang={lang} onSignedIn={value=>{api.setToken(value);setToken(value);refresh().catch(fail);setNotice(tr("رمز ذخیره شد.", "Password saved."));}}/>}
+      {tab === "membership" && (
+        <section className="card narrow">
+          <p className="eyebrow">
+            {tr("همراهی شما با دروازه", "YOUR DARVAZEH MEMBERSHIP")}
+          </p>
+          <h2>{planName(sub)}</h2>
+          <p className="muted">
+            {!user.emailVerified ? tr("دوره آزمایشی پس از تأیید ایمیل شروع می‌شود.","Your trial starts after you verify your email.") : sub.messageLimit===0 ? tr("ایمیل تأیید شده است. این نشانی قبلاً از دوره آزمایشی استفاده کرده؛ برای ادامه یک طرح انتخاب کنید.","Email verified. This email identity has already used its trial; choose a plan to continue.") : sub.active
+              ? tr("اشتراک شما فعال است.", "Your membership is active.")
+              : tr(
+                  "مدت اشتراک به پایان رسیده است.",
+                  "Your membership has expired.",
+                )}
+          </p>
+          <div className="usage-number">
+            {sub.usedMessages}
+            <small> / {sub.messageLimit}</small>
+          </div>
+          <p>
+            {tr(
+              "پیام استفاده‌شده از مجموع ارسال و دریافت",
+              "messages used across sending and receiving",
+            )}
+          </p>
+          <progress
+            value={Math.min(sub.usedMessages, sub.messageLimit)}
+            max={Math.max(1,sub.messageLimit)}
+          />
+          <p className="hint">{tr("ایمیل باقی‌مانده", "Email forwards remaining")}: {sub.remainingEmailForwards} / {sub.emailForwardLimit}</p>
+          <p className="hint">
+            {tr("اعتبار تا", "Valid until")} {date(sub.expiresAt)}
+          </p>
+          <div className="feature-grid">
+            <div>
+              <strong>{tr("ارسال پیام", "Sending")}</strong>
+              <span className="badge">
+                {sub.canSend
+                  ? tr("فعال", "Available")
+                  : tr("غیرفعال", "Unavailable")}
+              </span>
+            </div>
+            <div>
+              <strong>{tr("دریافت پیام", "Receiving")}</strong>
+              <span className="badge">
+                {sub.canReceive
+                  ? tr("فعال", "Available")
+                  : tr("غیرفعال", "Unavailable")}
+              </span>
+            </div>
+          </div>
+          <p className="muted">
+            {tr(
+              "برای خرید یک دوره، طرح و روش پرداخت را در پایین انتخاب کنید. پیام‌های ثبت‌شده در صندوق شما می‌مانند.",
+              "Choose a plan and payment option below to buy one period. Your existing messages stay in your inbox.",
+            )}
+          </p>
+          <p className="hint">
+            {tr(
+              "هر پیام دریافتی یا ثبت‌شده برای ارسال، یک پیام از ظرفیت اشتراک کم می‌کند؛ ارسال ناموفق هم در این ظرفیت حساب می‌شود.",
+              "Each incoming message or queued outgoing message uses one unit. Failed outgoing messages also use a unit.",
+            )}
+          </p>
+          {user.emailVerified && <BillingPanel lang={lang} onMembershipChanged={() => refresh()} />}
+        </section>
+      )}
+      {tab === "admin" && isAdmin && <EmailDiagnostics lang={lang}/> }
       {tab === "admin" && isAdmin && (
-        <section className="card">
-          <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>{tr("adminTitle")}</h2>
-          <p className="muted">{tr("adminLead")}</p>
-          {adminUsers.map((u) => (
-            <div key={u.id} className="msg row" style={{ justifyContent: "space-between" }}>
-              <div>
-                <strong dir="ltr">{u.email}</strong>
-                <div className="muted mono" style={{ fontSize: "0.8rem" }}>
-                  {u.role} · {u.deviceCount} · {u.canRelaySms ? tr("relayOn") : "—"}
+        <>
+          <AdminSecurity lang={lang}/>
+          <AdminCreateUser lang={lang} onChange={adminRefresh}/>
+          <div className="stats-grid">
+            {stats &&
+              [
+                [tr("کاربران", "Users"), stats.users],
+                [
+                  tr("اشتراک فعال", "Active memberships"),
+                  stats.activeSubscriptions,
+                ],
+                [tr("دریافت‌شده", "Received"), stats.received],
+                [tr("ارسال‌شده", "Sent"), stats.sent],
+                [tr("در انتظار", "Queued"), stats.queued],
+                [tr("ناموفق", "Failed"), stats.failed],
+              ].map(([label, value]) => (
+                <div className="stat-card" key={label}>
+                  <span className="muted">{label}</span>
+                  <strong>{value}</strong>
                 </div>
-              </div>
+              ))}
+          </div>
+          <section className="card">
+            <div className="section-heading">
+              <h2>{tr("کاربران و دسترسی‌ها", "People & access")}</h2>
               <button
-                className={`btn ${u.canRelaySms ? "danger" : "secondary"}`}
-                type="button"
-                onClick={async () => {
-                  await api.setRelay(u.id, !u.canRelaySms);
-                  setAdminUsers(await api.adminUsers());
-                }}
+                className="btn secondary"
+                disabled={busy}
+                onClick={() => action(adminRefresh)}
               >
-                {u.canRelaySms ? tr("revokeRelay") : tr("grantRelay")}
+                {tr("به‌روزرسانی", "Refresh")}
               </button>
             </div>
-          ))}
-        </section>
+            <label htmlFor="userSearch">
+              {tr("جست‌وجوی ایمیل", "Find by email")}
+            </label>
+            <input
+              id="userSearch"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              dir="ltr"
+            />
+            {users
+              .filter((u) =>
+                u.email.toLowerCase().includes(search.toLowerCase()),
+              )
+              .map((u) => (
+                <AdminUserCard
+                  key={u.id}
+                  user={u}
+                  plans={plans}
+                  lang={lang}
+                  busy={busy}
+                  update={(fn) =>
+                    action(async () => {
+                      await fn();
+                      await adminRefresh();
+                      await refresh();
+                    })
+                  }
+                />
+              ))}
+          </section>
+          <section className="card">
+            <h2>{tr("طرح‌های اشتراک", "Membership plans")}</h2>
+            <PlanManager
+              plans={plans}
+              lang={lang}
+              busy={busy}
+              save={(id, p) =>
+                action(
+                  async () => {
+                    if (id) await api.updatePlan(id, p);
+                    else await api.createPlan(p);
+                    await adminRefresh();
+                  },
+                  tr("طرح و قیمت‌ها ذخیره شد.", "Plan and prices saved."),
+                )
+              }
+            />
+          </section>
+          <AdminPayments lang={lang} />
+          <section className="card">
+            <h2>{tr("فعالیت‌های تازه", "Recent activity")}</h2>
+            <p className="hint">
+              {tr(
+                "رویدادهای حساب، تغییر اشتراک و وضعیت پیام‌ها ثبت می‌شوند؛ متن خصوصی پیام‌ها در این بخش نمایش داده نمی‌شود.",
+                "Account events, plan changes and message outcomes are recorded. Private message content is not shown here.",
+              )}
+            </p>
+            {activities.map((a) => (
+              <div className="activity-row" key={a.id}>
+                <div>
+                  <strong>{activity(a.action)}</strong>
+                  <small dir="ltr">{a.email}</small>
+                </div>
+                <time className="muted small">{date(a.createdAt)}</time>
+              </div>
+            ))}
+          </section>
+        </>
       )}
+      <footer>
+        Darvazeh ·{" "}
+        {tr(
+          "فاصله‌ها می‌گذرند؛ پیوندها می‌مانند.",
+          "Distances change. Connections stay.",
+        )}
+      </footer>
     </div>
+  );
+}
+function AdminUserCard({
+  user: u,
+  plans,
+  lang,
+  busy,
+  update,
+}: {
+  user: AdminUser;
+  plans: Plan[];
+  lang: Lang;
+  busy: boolean;
+  update: (fn: () => Promise<unknown>) => void;
+}) {
+  const tr = (fa: string, en: string) => (lang === "fa" ? fa : en);
+  const [selected, setSelected] = useState("");
+  const s = u.subscription;
+  return (
+    <article className="admin-user">
+      <div className="row between">
+        <div>
+          <strong dir="ltr" className="account-email">
+            {u.email}
+          </strong>
+          <p className="small muted">
+            {s.planCode === "trial" ? tr("آزمایشی", "Trial") : s.planName} ·{" "}
+            {s.usedMessages}/{s.messageLimit} {tr("پیام", "messages")} ·{" "}
+            {s.active ? tr("فعال", "Active") : tr("پایان‌یافته", "Expired")}
+          </p>
+        </div>
+        <span className="badge">
+          {u.role === "Admin"
+            ? tr("مدیر", "Administrator")
+            : tr("کاربر", "Member")}
+        </span>
+      </div>
+      <AdminAccountControls user={u} lang={lang} busy={busy} update={update}/>
+      <div className="user-counters">
+        <span>
+          {tr("دریافت", "Received")}: {u.received}
+        </span>
+        <span>
+          {tr("ارسال", "Sent")}: {u.sent}
+        </span>
+        <span>
+          {tr("در انتظار", "Queued")}: {u.queued}
+        </span>
+        <span>
+          {tr("ناموفق", "Failed")}: {u.failed}
+        </span>
+        <span>
+          {tr("گوشی", "Phones")}: {u.deviceCount}
+        </span>
+      </div>
+      <div className="row">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={s.sendEnabled}
+            disabled={busy}
+            onChange={(e) =>
+              update(() =>
+                api.setFeatures(u.id, e.target.checked, s.receiveEnabled),
+              )
+            }
+          />
+          {tr("اجازه ارسال", "Allow sending")}
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={s.receiveEnabled}
+            disabled={busy}
+            onChange={(e) =>
+              update(() =>
+                api.setFeatures(u.id, s.sendEnabled, e.target.checked),
+              )
+            }
+          />
+          {tr("اجازه دریافت", "Allow receiving")}
+        </label>
+      </div>
+      <button
+        className="text-button"
+        disabled={busy}
+        onClick={() => update(() => api.setFeatures(u.id, null, null))}
+      >
+        {tr("استفاده از دسترسی‌های طرح", "Use plan permissions")}
+      </button>
+      <p className="hint">
+        {tr("اعتبار تا", "Valid until")}{" "}
+        {new Date(s.expiresAt).toLocaleString(
+          lang === "fa" ? "fa-IR" : "en-NZ",
+        )}
+      </p>
+      <div className="row">
+        <select
+          aria-label={tr("انتخاب طرح برای", "Choose plan for") + " " + u.email}
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
+        >
+          <option value="">{tr("انتخاب طرح…", "Choose a plan…")}</option>
+          {plans.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.code === "trial" ? tr("آزمایشی", "Trial") : p.name} ·{" "}
+              {p.durationDays} {tr("روز", "days")} / {p.messageLimit}
+            </option>
+          ))}
+        </select>
+        <button
+          className="btn secondary"
+          disabled={busy || !selected}
+          onClick={() => {
+            if (
+              window.confirm(
+                tr(
+                  "اشتراک جدید از اکنون آغاز و ظرفیت پیام‌ها از نو محاسبه شود؟",
+                  "Start a new membership now with a fresh message allowance?",
+                ),
+              )
+            )
+              update(() => api.assignPlan(u.id, selected));
+          }}
+        >
+          {tr("فعال‌سازی / تمدید", "Activate / renew")}
+        </button>
+      </div>
+      {u.lastLoginAt && (
+        <p className="hint">
+          {tr("آخرین ورود", "Last sign-in")}:{" "}
+          {new Date(u.lastLoginAt).toLocaleString(
+            lang === "fa" ? "fa-IR" : "en-NZ",
+          )}
+        </p>
+      )}
+    </article>
   );
 }

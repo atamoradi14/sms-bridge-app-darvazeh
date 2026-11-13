@@ -1,0 +1,24 @@
+{
+  "release": "release-20261113-04",
+  "verifiedAtUtc": "2026-11-13T02:07:34Z",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:60847b4ed25244b80d20e7f5607af449999e8da07923112ce8943799b97c6e0e",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:9904c75ee19205e1c4f35ad3d5c49984bb38afa39d04c8a1f1017b86033255c8"
+  },
+  "signupOtpRequired": false,
+  "verifiedEmailRequiredForMessaging": true,
+  "trialDays": 3,
+  "trialMessageLimit": 20,
+  "migrationPreservedExistingPeriods": true,
+  "verification": [
+    "password/activation/profile security",
+    "Google token and flow",
+    "membership",
+    "billing",
+    "device link and health",
+    "email outbox",
+    "deployment environment",
+    "desktop/mobile browser flows",
+    "live migration/routes/configuration/assets"
+  ]
+}

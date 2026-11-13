@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: fieldsense-api-data
-  namespace: sms-forwarder
+  namespace: darvazeh
   labels:
     app.kubernetes.io/name: fieldsense-api
     app.kubernetes.io/part-of: fieldsense

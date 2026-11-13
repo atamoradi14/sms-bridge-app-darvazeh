@@ -2,201 +2,300 @@
 <html lang="fa" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>دروازه</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>دروازه | Darvazeh</title>
+    <link rel="icon" href="darvazeh-mark.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@700&family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Amiri:wght@700&family=Vazirmatn:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --lapis: #0c3b66;
-        --lapis-deep: #071e36;
-        --turquoise: #1a8f8a;
-        --emerald: #0f5c4c;
-        --ivory: #f3f0e6;
-        --ink: #102a2f;
-        --muted: #4a6670;
-        --gold: #b8923a;
-        --danger: #9b2c2c;
-        --ok: #0f5c4c;
-        --line: rgba(12, 59, 102, 0.16);
-        --panel: rgba(243, 240, 230, 0.94);
-        --font-display: "Amiri", "Vazirmatn", serif;
-        --font-body: "Vazirmatn", system-ui, sans-serif;
+        --ink: #263e3a;
+        --muted: #68766e;
+        --green: #174c44;
+        --gold: #ac8146;
+        --line: #e4dbc9;
       }
-      * { box-sizing: border-box; }
-      html, body { min-height: 100%; margin: 0; }
+      * {
+        box-sizing: border-box;
+      }
+      html,
       body {
-        font-family: var(--font-body);
+        margin: 0;
+        min-height: 100%;
+        font-family: Vazirmatn, Arial, sans-serif;
         color: var(--ink);
-        line-height: 1.55;
-        background:
-          radial-gradient(ellipse 90% 55% at 10% -10%, rgba(43, 181, 173, 0.28), transparent 55%),
-          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(12, 59, 102, 0.9), transparent 50%),
-          linear-gradient(165deg, #071e36, #0c3b66 40%, #0f5c4c);
-        padding: 1rem;
-        padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+        background: #f5f0e7;
       }
-      .shell { width: min(440px, 100%); margin: 0 auto; }
+      body {
+        padding: 18px 16px calc(24px + env(safe-area-inset-bottom));
+        line-height: 1.9;
+      }
+      .shell {
+        max-width: 480px;
+        margin: auto;
+      }
       .hero {
         position: relative;
         overflow: hidden;
-        border-radius: 1.35rem;
-        padding: 1.6rem 1.25rem 1.35rem;
-        color: var(--ivory);
-        background: linear-gradient(135deg, rgba(12,59,102,.95), rgba(15,92,76,.9) 55%, rgba(26,143,138,.78));
-        border: 1px solid rgba(184,146,58,.4);
-        box-shadow: 0 22px 50px rgba(7,30,54,.35);
-        margin-bottom: 1rem;
-        text-align: center;
+        min-height: 205px;
+        padding: 25px 22px;
+        margin-bottom: 18px;
+        background: #dde4d7;
+        border-radius: 18px;
+        text-align: right;
       }
-      .hero::before {
+      .hero:after {
         content: "";
-        position: absolute; inset: 0;
-        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%23f3f0e6' stroke-opacity='0.12' stroke-width='1'%3E%3Cpath d='M40 0 L80 40 L40 80 L0 40 Z'/%3E%3C/g%3E%3C/svg%3E");
-        pointer-events: none;
+        position: absolute;
+        left: 0;
+        bottom: -65px;
+        width: 46%;
+        height: 280px;
+        background: url(caravanserai.svg) center 60% / cover;
+        mask-image: linear-gradient(90deg, #000 55%, transparent);
       }
       .gate {
-        width: 72px; height: 72px; margin: 0 auto .75rem;
-        border-radius: 1.1rem;
-        background: rgba(243,240,230,.12);
-        border: 1px solid rgba(184,146,58,.45);
-        display: grid; place-items: center;
-        position: relative; z-index: 1;
+        width: 49px;
+        height: 49px;
+        margin-bottom: 9px;
       }
-      .gate svg { width: 46px; height: 46px; }
+      .gate img {
+        width: 100%;
+        height: 100%;
+      }
       .brand-en {
-        position: relative; z-index: 1;
-        margin: 0; letter-spacing: .22em; font-size: .72rem; opacity: .85;
+        font-size: 11px;
+        letter-spacing: 3px;
+        color: #8d734a;
+        margin: 0;
       }
       h1 {
-        position: relative; z-index: 1;
-        margin: .15rem 0 .35rem; font-family: var(--font-display);
-        font-size: 2.35rem; font-weight: 700;
+        font-size: 30px;
+        margin: 0;
+        line-height: 1.5;
       }
-      .tagline { position: relative; z-index: 1; margin: 0; opacity: .9; font-size: .95rem; }
+      h2 {
+        font-size: 22px;
+        margin: 0 0 6px;
+      }
+      .tagline {
+        font-size: 13px;
+        margin: 5px 0;
+        color: #527061;
+        max-width: 65%;
+      }
       .card {
-        background: var(--panel);
         border: 1px solid var(--line);
-        border-radius: 1.25rem;
-        padding: 1.2rem 1.1rem 1.3rem;
-        box-shadow: 0 16px 40px rgba(7,30,54,.18);
+        background: #fffdf8;
+        border-radius: 16px;
+        padding: 24px 20px;
       }
-      h2 { margin: 0 0 .35rem; font-family: var(--font-display); font-size: 1.45rem; }
-      .muted { color: var(--muted); margin: .25rem 0 .85rem; font-size: .92rem; }
-      label { display: block; font-size: .88rem; color: var(--muted); margin-top: .85rem; font-weight: 500; }
+      .muted,
+      .hint {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .muted {
+        margin: 0 0 20px;
+      }
+      .hint {
+        margin: 20px 0 4px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        margin-top: 18px;
+      }
       input {
-        width: 100%; margin-top: .35rem; min-height: 52px;
-        border-radius: .95rem; border: 1px solid rgba(12,59,102,.18);
-        padding: .85rem 1rem; font: inherit; background: #fff;
+        width: 100%;
+        min-height: 52px;
+        border: 1px solid #d7ccba;
+        border-radius: 10px;
+        background: #fffdf8;
+        padding: 12px;
+        font: inherit;
+        margin-top: 6px;
+        color: var(--ink);
       }
-      input:focus { outline: 2px solid rgba(26,143,138,.45); border-color: var(--turquoise); }
-      .actions { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1.1rem; }
+      input:focus {
+        outline: 2px solid #578679;
+        outline-offset: 1px;
+      }
+      #code {
+        text-align: center;
+        font-size: 24px;
+        letter-spacing: 8px;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 22px;
+      }
       button {
-        appearance: none; border: 0; border-radius: .95rem; min-height: 52px;
-        padding: .85rem 1.15rem; font: inherit; font-weight: 700; cursor: pointer;
+        font: inherit;
+        min-height: 50px;
+        padding: 12px 18px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        font-weight: 600;
       }
       .btn-primary {
-        flex: 1 1 140px;
-        background: linear-gradient(145deg, var(--turquoise), var(--emerald));
-        color: var(--ivory);
-        box-shadow: 0 10px 22px rgba(15,92,76,.28);
+        background: var(--green);
+        color: #fffaf0;
+        flex: 1;
+      }
+      .btn-secondary {
+        background: #e9eee7;
+        color: var(--green);
       }
       .btn-ghost {
-        background: transparent; color: var(--muted);
-        border: 1px solid var(--line);
+        background: none;
+        border-color: var(--line);
+        color: var(--muted);
       }
-      .btn-secondary { background: #e4eee9; color: var(--lapis); }
-      .status { margin-top: .9rem; font-weight: 600; color: var(--ok); min-height: 1.3em; }
-      .error { margin-top: .55rem; color: var(--danger); font-weight: 600; min-height: 1.2em; }
+      .status {
+        color: #24583c;
+        font-size: 13px;
+        margin-top: 16px;
+      }
+      .error {
+        color: #9e3f35;
+        font-size: 13px;
+      }
+      .status:empty,
+      .error:empty {
+        display: none;
+      }
       .account {
-        border-radius: 1rem; padding: .95rem 1rem; margin-bottom: .85rem;
-        background: linear-gradient(135deg, rgba(12,59,102,.08), rgba(26,143,138,.1));
-        border: 1px solid var(--line);
+        padding: 16px;
+        background: #edf0e6;
+        border-radius: 12px;
       }
-      .account strong { display: block; direction: ltr; text-align: start; font-size: 1.05rem; }
+      .account strong {
+        display: block;
+        overflow-wrap: anywhere;
+      }
       .pill {
-        display: inline-block; margin-top: .45rem; padding: .2rem .55rem;
-        border-radius: 999px; font-size: .75rem; font-weight: 700;
-        background: rgba(26,143,138,.16); color: var(--emerald);
+        font-size: 12px;
+        color: #24583c;
       }
       .switch-row {
-        display: flex; align-items: center; gap: .7rem; min-height: 48px; margin: .85rem 0 .2rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 22px;
       }
-      .switch-row label { margin: 0; color: var(--ink); font-weight: 600; }
-      .hint { font-size: .82rem; color: var(--muted); margin-top: 1rem; }
-      .hidden { display: none !important; }
-      .busy { opacity: .65; pointer-events: none; }
+      .switch-row input {
+        width: 22px;
+        min-height: 22px;
+        margin: 0;
+        accent-color: var(--green);
+      }
+      .switch-row label {
+        margin: 0;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .busy {
+        opacity: 0.6;
+        pointer-events: none;
+      }
       #lastEvent {
-        margin-top: .45rem; white-space: pre-wrap; word-break: break-word;
-        font-family: ui-monospace, monospace; font-size: .75rem;
-        background: rgba(12,59,102,.05); border-radius: .85rem; padding: .75rem;
-        border: 1px solid var(--line); direction: ltr; text-align: left; max-height: 140px; overflow: auto;
+        font: inherit;
+        white-space: pre-wrap;
+        font-size: 13px;
+        line-height: 1.9;
+        background: #f5f0e7;
+        padding: 14px;
+        border-radius: 10px;
+        margin-top: 6px;
       }
-    </style>
+      .trial-card {
+        padding: 15px;
+        background: #f4eddd;
+        border-radius: 10px;
+        margin: 20px 0 0;
+        font-size: 12px;
+        color: #795c33;
+      }
+      .membership {
+        background: #eaf0e6;
+        border-radius: 10px;
+        padding: 14px;
+        margin: 16px 0;
+        font-size: 13px;
+      }
+      a {
+        color: var(--green);
+      }
+    .hero{background:linear-gradient(90deg,rgba(20,40,33,.2),rgba(20,40,33,.78)),url(caravanserai-gateway.png) center 43%/cover;color:#fff9ec}.hero:after{display:none}.hero .tagline,.hero .brand-en{color:#f0e7d5}</style>
   </head>
   <body>
     <div class="shell">
       <header class="hero">
-        <div class="gate" aria-hidden="true">
-          <svg viewBox="0 0 64 64" fill="none">
-            <path d="M10 56V28c0-12 10-22 22-22s22 10 22 22v28" stroke="#f3f0e6" stroke-width="3.2" stroke-linecap="round"/>
-            <path d="M18 56V30c0-8 6.5-14 14-14s14 6 14 14v26" stroke="#b8923a" stroke-width="2.4"/>
-            <path d="M26 56v-14h12v14" stroke="#2bb5ad" stroke-width="2.6" stroke-linecap="round"/>
-            <circle cx="32" cy="24" r="2.4" fill="#b8923a"/>
-          </svg>
-        </div>
+        <div class="gate"><img src="darvazeh-mark.svg" alt="" /></div>
+        <p class="brand-en">DARVAZEH</p>
         <h1>دروازه</h1>
-        <p class="tagline">سیم در ایران — صندوق در هر کجا</p>
+        <p class="tagline">دروازه ای برای ارتباطات شما</p>
       </header>
 
       <section class="card" id="app">
         <div id="loginPanel">
-          <h2>ورود</h2>
-          <p class="muted">با همان ایمیل وب‌اپ وارد شوید. کد یک‌بارمصرف می‌آید و گوشی خودکار وصل می‌شود.</p>
-          <label>ایمیل
-            <input id="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" dir="ltr" />
-          </label>
-          <div id="otpBlock" class="hidden">
-            <label>کد یک‌بارمصرف
-              <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="۶ رقم" dir="ltr" />
-            </label>
-            <label id="adminPassWrap" class="hidden">رمز مدیر
-              <input id="adminPassword" type="password" autocomplete="current-password" dir="ltr" />
-            </label>
-          </div>
-          <div class="actions">
-            <button id="requestOtp" class="btn-primary" type="button">ارسال کد</button>
-            <button id="verifyOtp" class="btn-primary hidden" type="button">تأیید و اتصال</button>
-            <button id="backOtp" class="btn-ghost hidden" type="button">بازگشت</button>
+          <h2>اتصال گوشی</h2>
+          <p class="muted">ایمیل حساب دروازه را وارد کنید. سپس در مرورگر وارد همان حساب شوید و اتصال این گوشی را تأیید کنید. روی گوشی به کد ورود نیاز ندارید.</p>
+          <label>ایمیل<input id="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" dir="ltr" /></label>
+          <div class="actions"><button id="requestLink" class="btn-primary" type="button">درخواست اتصال</button></div>
+          <div id="waitingPanel" class="membership hidden" role="status" aria-live="polite">
+            <strong>در انتظار تأیید در مرورگر</strong>
+            <p>در وب‌اپ، بخش «گوشی من»، کد زیر را با این گوشی مقایسه کنید و تأیید بزنید. درخواست ۱۰ دقیقه معتبر است.</p>
+            <strong id="comparisonCode" dir="ltr" style="font-size:28px;letter-spacing:6px"></strong>
+            <p><a href="https://darvazeh.daryajan.com" target="_blank" rel="noopener">باز کردن دروازه در مرورگر</a></p>
+            <button id="cancelLink" class="btn-ghost" type="button">لغو و تغییر ایمیل</button>
           </div>
         </div>
 
         <div id="linkedPanel" class="hidden">
           <div class="account">
-            <span class="muted" style="margin:0">وصل به حساب</span>
+            <span class="muted" style="margin: 0">وصل به حساب</span>
             <strong id="linkedEmail" dir="ltr"></strong>
             <span class="pill" id="linkPill">متصل</span>
           </div>
           <div class="switch-row">
             <input id="enabled" type="checkbox" />
-            <label for="enabled">دروازه ها برای پیامک باز است</label>
+            <label for="enabled">ارتباط گوشی فعال است</label>
           </div>
           <div class="actions">
             <button id="save" class="btn-primary" type="button">ذخیره</button>
-            <button id="test" class="btn-secondary" type="button">تست اتصال</button>
-            <button id="signOut" class="btn-ghost" type="button">خروج</button>
+            <button id="test" class="btn-secondary" type="button">
+              تست اتصال
+            </button>
+            <button id="signOut" class="btn-ghost" type="button">تغییر ایمیل</button>
           </div>
-          <p class="hint">آخرین رویداد</p>
+          <div id="membership" class="membership">در حال بررسی اشتراک…</div>
+          <div id="phoneHealth" class="membership" role="status"></div>
+          <p class="hint">آخرین وضعیت</p>
           <pre id="lastEvent">{}</pre>
           <p class="hint">
-            مجوز SMS، اعلان‌ها و نادیده گرفتن بهینه‌سازی باتری را بدهید.
-            هواوی: تنظیمات → باتری → راه‌اندازی برنامه → دروازه → مدیریت دستی.
+            مجوز SMS، اعلان‌ها و نادیده گرفتن بهینه‌سازی باتری را بدهید. هواوی:
+            تنظیمات → باتری → راه‌اندازی برنامه → دروازه → مدیریت دستی.
           </p>
         </div>
 
-        <p id="status" class="status"></p>
-        <p id="error" class="error"></p>
+        <p class="trial-card">
+          سه روز مهمان دروازه باشید؛ ۲۰ پیام برای ارسال و دریافت. هر دو امکان از
+          آغاز فعال است.
+        </p>
+        <p id="status" class="status" role="status"></p>
+        <p id="error" class="error" role="alert"></p>
       </section>
     </div>
 
@@ -204,18 +303,15 @@
       const KEY = "fieldsense.device-agent.v2";
       const INSTALL_KEY = "fieldsense.installation-id";
       // Remote config (update without shipping a new APK). Falls back to baked default.
-      const CONFIG_URLS = [
-        "https://atamoradi14.github.io/sms-bridge-app-darvazeh/mobile-config.json",
-        "https://atamoradi14.github.io/sms-bridge-app-darvazeh/api/public/mobile-config"
-      ];
-      const DEFAULT_API_BASE = "https://aerospace-template-definitions-prostate.trycloudflare.com";
+      const CONFIG_URLS = ["https://api1.daryajan.com/api/public/mobile-config"];
+      const DEFAULT_API_BASE = "https://api1.daryajan.com";
 
       const defaults = {
         enabled: false,
         apiBase: DEFAULT_API_BASE,
         deviceToken: "",
         email: "",
-        deviceName: "Iran phone",
+        deviceName: "Android phone",
         deviceId: "",
       };
 
@@ -249,12 +345,22 @@
       }
 
       function load() {
-        try { return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; }
-        catch { return { ...defaults }; }
+        try {
+          return {
+            ...defaults,
+            ...JSON.parse(localStorage.getItem(KEY) || "{}"),
+          };
+        } catch {
+          return { ...defaults };
+        }
       }
 
-      function setError(msg) { error.textContent = msg || ""; }
-      function setStatus(msg) { status.textContent = msg || ""; }
+      function setError(msg) {
+        document.getElementById("error").textContent = msg || "";
+      }
+      function setStatus(msg) {
+        document.getElementById("status").textContent = msg || "";
+      }
 
       function showLinked(settings) {
         const linked = !!(settings.deviceToken && settings.email);
@@ -264,8 +370,8 @@
           linkedEmail.textContent = settings.email;
           enabled.checked = !!settings.enabled;
           linkPill.textContent = settings.enabled
-            ? "دروازه ها برای پیامک باز است"
-            : "دروازه ها برای پیامک بسته است";
+            ? "ارتباط گوشی فعال است"
+            : "ارتباط گوشی متوقف است";
         }
       }
 
@@ -282,27 +388,46 @@
       function refreshLast() {
         try {
           if (window.FieldSenseSms && window.FieldSenseSms.getLastEvent) {
-            lastEvent.textContent = window.FieldSenseSms.getLastEvent() || "{}";
+            const event = JSON.parse(
+              window.FieldSenseSms.getLastEvent() || "{}",
+            );
+            const state = event.status || "";
+            lastEvent.textContent = /error|failed/i.test(state)
+              ? "ارتباط یا اشتراک را بررسی کنید و دوباره تلاش کنید."
+              : /sent/i.test(state)
+                ? "پیام برای ارسال به گوشی تحویل شد."
+                : /uploaded|received/i.test(state)
+                  ? "پیام تازه در صندوق شما ثبت شد."
+                  : /heartbeat/i.test(state)
+                    ? "گوشی به دروازه متصل است."
+                    : "هنوز فعالیتی ثبت نشده است.";
           }
         } catch (e) {
-          lastEvent.textContent = String(e);
+          lastEvent.textContent = "وضعیت تازه‌ای در دسترس نیست.";
         }
       }
 
       async function resolveApiBase() {
         for (const url of CONFIG_URLS) {
           try {
-            const res = await fetch(url + (url.includes("?") ? "&" : "?") + "t=" + Date.now(), {
-              cache: "no-store",
-            });
+            const res = await fetch(
+              url + (url.includes("?") ? "&" : "?") + "t=" + Date.now(),
+              {
+                cache: "no-store",
+              },
+            );
             if (!res.ok) continue;
             const data = await res.json();
-            const base = (data.apiBase || data.ApiBase || "").trim().replace(/\/$/, "");
+            const base = (data.apiBase || data.ApiBase || "")
+              .trim()
+              .replace(/\/$/, "");
             if (base) {
               resolvedApiBase = base;
               return base;
             }
-          } catch (_) { /* try next */ }
+          } catch (_) {
+            /* try next */
+          }
         }
         const saved = (load().apiBase || "").trim().replace(/\/$/, "");
         resolvedApiBase = saved || DEFAULT_API_BASE;
@@ -313,152 +438,115 @@
         const base = (resolvedApiBase || DEFAULT_API_BASE).replace(/\/$/, "");
         const res = await fetch(base + path, {
           method: "POST",
-          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(body),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const err = new Error(data.error || res.statusText || "Request failed");
+          const err = new Error(
+            data.error || res.statusText || "Request failed",
+          );
           err.needAdminPassword = !!data.needAdminPassword;
           throw err;
         }
         return data;
       }
 
-      function showOtpStep(on) {
-        otpBlock.classList.toggle("hidden", !on);
-        verifyOtp.classList.toggle("hidden", !on);
-        backOtp.classList.toggle("hidden", !on);
-        requestOtp.classList.toggle("hidden", on);
-      }
 
-      async function onRequestOtp() {
-        setError("");
-        setStatus("");
-        const mail = (email.value || "").trim().toLowerCase();
-        if (!mail) return setError("ایمیل را وارد کنید");
-        app.classList.add("busy");
+      const PENDING_KEY="darvazeh.pending-link.v1";
+      let polling=false;
+      function pending() {try{return JSON.parse(localStorage.getItem(PENDING_KEY)||"null");}catch{return null;}}
+      function showWaiting() {
+        const p=pending();
+        waitingPanel.classList.toggle("hidden",!p);
+        requestLink.classList.toggle("hidden",!!p);
+        email.disabled=!!p;
+        if(p) {email.value=p.email;comparisonCode.textContent=p.comparisonCode;}
+      }
+      async function pollLink() {
+        const p=pending();if(!p || polling)return;polling=true;
+        try {
+          const r=await fetch((resolvedApiBase||DEFAULT_API_BASE)+"/api/device-links/"+p.id+"/status",{headers:{"X-Link-Secret":p.secret},cache:"no-store"});
+          if(!r.ok)throw new Error("ارتباط برقرار نشد؛ دوباره بررسی می‌کنیم.");
+          const data=await r.json();
+          if(pending()?.id!==p.id)return;
+          if(data.status==="approved") {
+            localStorage.removeItem(PENDING_KEY);
+            persist({...defaults,enabled:true,apiBase:resolvedApiBase,email:data.email,deviceToken:data.device.deviceToken,deviceId:data.device.id,deviceName:data.device.name});
+            showWaiting();setError("");setStatus("اتصال در مرورگر تأیید شد؛ گوشی آماده است.");refreshMembership();
+          } else if(data.status!=="pending") {
+            localStorage.removeItem(PENDING_KEY);showWaiting();
+            setStatus("");setError(data.status==="expired"?"مهلت درخواست پایان یافت. دوباره درخواست بدهید.":"درخواست تأیید نشد. می‌توانید با ایمیل دیگری درخواست بدهید.");
+          } else setStatus("در انتظار تأیید در مرورگر؛ وضعیت خودکار بررسی می‌شود.");
+        }catch {setError("اتصال اینترنت را بررسی کنید. بررسی تأیید ادامه دارد.");}
+        finally {polling=false;}
+      }
+      requestLink.addEventListener("click",async()=>{
+        const mail=email.value.trim().toLowerCase();
+        if(!email.checkValidity() || !mail)return setError("ایمیل معتبر وارد کنید.");
+        requestLink.disabled=true;setError("");
         try {
           await resolveApiBase();
-          const res = await api("/api/auth/request-otp", { email: mail });
-          showOtpStep(true);
-          setStatus(res.detail || "کد ارسال شد");
-        } catch (e) {
-          setError(
-            /Failed to fetch|NetworkError|Load failed/i.test(String(e.message || e))
-              ? "سرور در دسترس نیست. اتصال اینترنت را بررسی کنید."
-              : (e.message || String(e))
-          );
-        } finally {
-          app.classList.remove("busy");
-        }
-      }
-
-      async function onVerifyOtp() {
-        setError("");
-        setStatus("در حال اتصال گوشی…");
-        const mail = (email.value || "").trim().toLowerCase();
-        const otp = (code.value || "").trim();
-        if (!otp) return setError("کد را وارد کنید");
-        app.classList.add("busy");
+          const old=load();
+          const result=await api("/api/device-links/request",{email:mail,installationId:getInstallationId(),deviceName:detectPhoneModel(),appVersion:"2.2.1",previousDeviceToken:old.previousDeviceToken||old.deviceToken||null});
+          persist({...defaults,apiBase:resolvedApiBase});
+          localStorage.setItem(PENDING_KEY,JSON.stringify({...result,email:mail}));showWaiting();await pollLink();
+        }catch(e){setError(e.message||"درخواست ثبت نشد. دوباره تلاش کنید.");}
+        finally {requestLink.disabled=false;}
+      });
+      cancelLink.addEventListener("click",async()=>{
+        const p=pending();
+        if(!p)return;
+        cancelLink.disabled=true;
         try {
-          await resolveApiBase();
-          const payload = {
-            email: mail,
-            code: otp,
-            client: "phone",
-            installationId: getInstallationId(),
-            deviceName: detectPhoneModel(),
-            deviceModel: detectPhoneModel(),
-            platform: "android",
-            appVersion: "2.0.0",
-          };
-          if (!adminPassWrap.classList.contains("hidden") && adminPassword.value) {
-            payload.adminPassword = adminPassword.value;
-          }
-          const res = await api("/api/auth/verify-otp", payload);
-          const device = res.device || {};
-          const deviceToken = device.deviceToken || device.DeviceToken;
-          if (!deviceToken) throw new Error("اتصال دستگاه کامل نشد");
-          const next = {
-            ...load(),
-            enabled: true,
-            apiBase: resolvedApiBase,
-            deviceToken,
-            email: mail,
-            deviceId: device.id || device.Id || "",
-            deviceName: device.name || device.Name || "Iran phone",
-          };
-          persist(next);
-          code.value = "";
-          adminPassword.value = "";
-          adminPassWrap.classList.add("hidden");
-          showOtpStep(false);
-          setStatus("گوشی به حساب وصل شد");
-        } catch (e) {
-          if (e.needAdminPassword) {
-            adminPassWrap.classList.remove("hidden");
-            setError("رمز مدیر لازم است");
-          } else {
-            setError(e.message || String(e));
-          }
-          setStatus("");
-        } finally {
-          app.classList.remove("busy");
-        }
-      }
-
-      const initial = load();
-      if (initial.apiBase) resolvedApiBase = initial.apiBase;
-      showLinked(initial);
-      showOtpStep(false);
-      resolveApiBase().then((base) => {
-        const s = load();
-        if (s.apiBase !== base) {
-          s.apiBase = base;
-          localStorage.setItem(KEY, JSON.stringify(s));
-        }
+          const response=await fetch(resolvedApiBase+"/api/device-links/"+p.id+"/cancel",{method:"POST",headers:{"X-Link-Secret":p.secret}});
+          if(!response.ok)throw new Error();
+          localStorage.removeItem(PENDING_KEY);showWaiting();setStatus("درخواست لغو شد. ایمیل دلخواه را وارد کنید.");setError("");
+        } catch {setError("لغو انجام نشد. اتصال را بررسی کنید و دوباره بزنید.");}
+        finally {cancelLink.disabled=false;}
       });
-
-      requestOtp.addEventListener("click", onRequestOtp);
-      verifyOtp.addEventListener("click", onVerifyOtp);
-      backOtp.addEventListener("click", () => {
-        showOtpStep(false);
-        setError("");
-        setStatus("");
+      save.addEventListener("click",()=>{
+        const settings=load();settings.enabled=enabled.checked;settings.apiBase=resolvedApiBase;persist(settings);
+        setStatus(settings.enabled?"ارتباط گوشی فعال است":"ارتباط گوشی متوقف است");
       });
-      save.addEventListener("click", () => {
-        const s = load();
-        s.enabled = enabled.checked;
-        s.apiBase = resolvedApiBase;
-        persist(s);
-        setStatus(s.enabled
-          ? "دروازه ها برای پیامک باز است"
-          : "دروازه ها برای پیامک بسته است");
+      test.addEventListener("click",()=>{
+        try {setStatus(window.FieldSenseSms?.testHeartbeat?.()||"داخل اپ نصب‌شده تست کنید.");}catch {setError("اتصال برقرار نشد.");}
+        refreshLast();refreshMembership();
       });
-      test.addEventListener("click", () => {
-        const s = load();
-        s.enabled = enabled.checked;
-        s.apiBase = resolvedApiBase;
-        persist(s);
+      signOut.addEventListener("click",async()=>{
+        const old=load();
+        persist({...defaults,apiBase:old.apiBase,previousDeviceToken:old.deviceToken});
+        email.value="";setStatus("ارتباط متوقف شد. ایمیل تازه نیاز به تأیید دوباره در مرورگر دارد.");
         try {
-          if (window.FieldSenseSms && window.FieldSenseSms.testHeartbeat) {
-            setStatus(window.FieldSenseSms.testHeartbeat() || "OK");
-          } else {
-            setStatus("داخل اپ نصب‌شده تست کنید");
-          }
-        } catch (e) {
-          setError(String(e));
-        }
-        refreshLast();
+          const r=await fetch(resolvedApiBase+"/api/device/disconnect",{method:"POST",headers:{"X-Device-Token":old.deviceToken}});
+          if(r.ok)persist({...defaults,apiBase:resolvedApiBase});
+        }catch {setError("ارتباط روی گوشی متوقف است؛ با بازگشت اینترنت، درخواست اتصال تازه حساب قبلی را قطع می‌کند.");}
       });
-      signOut.addEventListener("click", () => {
-        const s = load();
-        persist({ ...defaults, apiBase: s.apiBase || resolvedApiBase, enabled: false });
-        showOtpStep(false);
-        setStatus("خارج شدید");
-      });
-      setInterval(refreshLast, 4000);
+      function healthHeaders() {
+        try {
+          const h=JSON.parse(window.FieldSenseSms?.getHealth?.()||"{}");
+          phoneHealth.textContent="باتری: "+(h.batteryLevel??"—")+"٪"+(h.isCharging?" · در حال شارژ":"")+" · شبکه: "+(h.networkType||"نامشخص")+(h.smsPermissionsGranted===false?" · مجوز پیامک لازم است":"");
+          const pairs={"X-Battery-Level":"batteryLevel","X-Is-Charging":"isCharging","X-Network-Type":"networkType","X-Network-Validated":"networkValidated","X-Sms-Permissions":"smsPermissionsGranted","X-Battery-Exempt":"batteryOptimizationExempt"};
+          return Object.fromEntries(Object.entries(pairs).filter(([,k])=>h[k]!==undefined).map(([k,v])=>[k,String(h[v])]));
+        }catch{return {};}
+      }
+      async function refreshMembership() {
+        const settings=load();healthHeaders();if(!settings.deviceToken || !settings.enabled)return;
+        try {
+          const response=await fetch(resolvedApiBase+"/api/device/heartbeat",{method:"POST",headers:{"X-Device-Token":settings.deviceToken,...healthHeaders()}});
+          if(response.status===401){persist({...defaults,apiBase:resolvedApiBase});setError("اتصال این گوشی لغو شده است؛ دوباره درخواست تأیید بدهید.");return;}
+          if(!response.ok)throw new Error();
+          const {subscription:s}=await response.json();
+          membership.textContent=(s.planCode==="trial"?"دوره آزمایشی":s.planName)+" · "+s.remainingMessages+" پیام · "+s.remainingEmailForwards+" ارسال ایمیل باقی‌مانده";
+          linkPill.textContent="متصل";
+        }catch {linkPill.textContent="اتصال برقرار نیست؛ اینترنت را بررسی کنید.";}
+      }
+      const initial=load();if(initial.apiBase)resolvedApiBase=initial.apiBase;showLinked(initial);showWaiting();
+      resolveApiBase().then(()=>{pollLink();refreshMembership();});
+      setInterval(pollLink,5000);setInterval(refreshMembership,30000);setInterval(()=>{refreshLast();healthHeaders();},4000);
       refreshLast();
     </script>
   </body>

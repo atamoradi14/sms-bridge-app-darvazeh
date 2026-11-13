@@ -8,18 +8,11 @@ on:
         required: true
         default: set-image
         type: choice
-        options:
-          - apply
-          - set-image
+        options: [apply, set-image]
       tag:
         description: Docker image tag
         required: true
         default: latest
-      skip_ingress:
-        description: Skip applying Ingress
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -27,65 +20,50 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      IMAGE_TAG: ${{ inputs.tag }}
+      DEPLOY_MODE: ${{ inputs.mode }}
+      KUBECONFIG_B64: ${{ secrets.KUBE_CONFIG }}
+      SSH_KEY: ${{ secrets.RAVAND_WORKER_SSH_KEY }}
+      WORKER_SSH_ADDRESS: ${{ secrets.RAVAND_WORKER_SSH_HOST }}
+      DEPLOY_ENV_B64: ${{ secrets.DARVAZEH_ENV_B64 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Require secrets
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-          HELSINKI_SSH_KEY: ${{ secrets.HELSINKI_SSH_KEY }}
-          HELSINKI_SSH_HOST: ${{ secrets.HELSINKI_SSH_HOST }}
+      - name: Require deployment credentials
         run: |
-          if [ -z "$DOCKERHUB_USERNAME" ]; then
-            echo "Missing secret DOCKERHUB_USERNAME" >&2
-            exit 1
-          fi
-          if [ -z "$KUBE_CONFIG" ] && [ -z "$HELSINKI_SSH_KEY" ]; then
-            echo "Set either KUBE_CONFIG (base64 kubeconfig) or HELSINKI_SSH_KEY (+ HELSINKI_SSH_HOST)." >&2
-            exit 1
+          test -n "$DEPLOY_ENV_B64" || { echo 'Missing DARVAZEH_ENV_B64 (base64 root .env)' >&2; exit 1; }
+          umask 077
+          printf '%s' "$DEPLOY_ENV_B64" | base64 -d > .env
+          python3 scripts/deployment-env.py check
+          if [ -z "$KUBECONFIG_B64" ]; then
+            test -n "$SSH_KEY" && test -n "$WORKER_SSH_ADDRESS" || {
+              echo 'Set KUBE_CONFIG or both RAVAND_WORKER_SSH_KEY and RAVAND_WORKER_SSH_HOST' >&2
+              exit 1
+            }
           fi
 
-      - name: Deploy via kubeconfig
-        if: ${{ secrets.KUBE_CONFIG != '' }}
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          IMAGE_TAG: ${{ github.event.inputs.tag }}
-          KUBECONFIG_B64: ${{ secrets.KUBE_CONFIG }}
+      - name: Deploy using ravand context
+        if: env.KUBECONFIG_B64 != ''
         run: |
           mkdir -p ~/.kube
-          echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/config
+          printf '%s' "$KUBECONFIG_B64" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
-          SKIP=""
-          if [ "${{ github.event.inputs.skip_ingress }}" = "true" ]; then SKIP="--skip-ingress"; fi
-          chmod +x scripts/deploy.sh
-          ./scripts/deploy.sh "${{ github.event.inputs.mode }}" --local $SKIP
+          bash scripts/deploy.sh "$DEPLOY_MODE" --local --context ravand --tag "$IMAGE_TAG"
 
-      - name: Deploy via SSH to helsinki-server
-        if: ${{ secrets.KUBE_CONFIG == '' && secrets.HELSINKI_SSH_KEY != '' }}
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          IMAGE_TAG: ${{ github.event.inputs.tag }}
-          SSH_KEY: ${{ secrets.HELSINKI_SSH_KEY }}
-          SSH_HOST: ${{ secrets.HELSINKI_SSH_HOST }}
+      - name: Deploy via SSH to ravand-worker-01
+        if: env.KUBECONFIG_B64 == ''
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
-          HOST="${SSH_HOST:-helsinki-server}"
-          # If HOST is user@ip, use it; else assume hostname and IdentityFile
-          printf 'Host helsinki-server\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_deploy\n  StrictHostKeyChecking accept-new\n' \
-            "$(echo "$HOST" | sed 's/^.*@//')" \
-            "$(echo "$HOST" | awk -F@ '{if (NF>1) print $1; else print "ubuntu"}')" \
-            > ~/.ssh/config
-          # Prefer using the provided host string directly when it contains @
-          if [[ "$HOST" == *@* ]]; then
-            TARGET="$HOST"
-          else
-            TARGET="helsinki-server"
-          fi
-          SKIP=""
-          if [ "${{ github.event.inputs.skip_ingress }}" = "true" ]; then SKIP="--skip-ingress"; fi
-          chmod +x scripts/deploy.sh
-          ./scripts/deploy.sh "${{ github.event.inputs.mode }}" --ssh "$TARGET" $SKIP
+          # Keep a stable alias; the secret supplies the actual user@host address.
+          [[ "$WORKER_SSH_ADDRESS" =~ ^[a-zA-Z0-9_-]+@[a-zA-Z0-9.-]+$ ]] || {
+            echo 'RAVAND_WORKER_SSH_HOST must be user@host' >&2; exit 1;
+          }
+          printf 'Host ravand-worker-01\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_deploy\n  StrictHostKeyChecking accept-new\n' \
+            "${WORKER_SSH_ADDRESS#*@}" "${WORKER_SSH_ADDRESS%@*}" > ~/.ssh/config
+          bash scripts/deploy.sh "$DEPLOY_MODE" --ssh ravand-worker-01 --context ravand --tag "$IMAGE_TAG"

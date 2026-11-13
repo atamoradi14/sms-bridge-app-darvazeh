@@ -1,0 +1,36 @@
+{
+  "release": "release-20261113-01",
+  "verifiedAtUtc": "2026-11-12T20:37:29Z",
+  "images": {
+    "api": "sha256:20b38afbbb28f6428e0396f734da440d0525609c6607fe377199d00ee16b202e",
+    "web": "sha256:4387620320aa58f55c7e5faa4f7b094f7a65b25f2e8f1b0283ae49baf78fd407"
+  },
+  "changes": [
+    "verified username/email password signup/signin/reset",
+    "password lockout and old web-session revocation after reset",
+    "administrator OTP and extra password preserved",
+    "encrypted durable email outbox with independent OTP/SMS processing",
+    "provider operation tracking, retry and expiry handling",
+    "admin mail-status report and operational delivery logs enabled"
+  ],
+  "verification": [
+    "API and web builds",
+    "password-auth HTTP/SQLite test suite",
+    "email outbox transport-fixture tests",
+    "membership, billing, device-link health and seven environment tests",
+    "browser signup/password sign-in/settings/OTP fallback and mobile layout",
+    "production read-only auth/report/catalog/integrity checks",
+    "Public browser renders password sign-in, signup and OTP fallback"
+  ],
+  "counts": {
+    "users": 3,
+    "messages": 7,
+    "emailQueue": [],
+    "passwordAccounts": 0
+  },
+  "realDiagnosticEmailSent": false,
+  "limitations": [
+    "Historical metrics establish delayed delivery but not exact Gmail recipient cause",
+    "Provider submission is not inbox delivery; detailed logs now available for future messages"
+  ]
+}

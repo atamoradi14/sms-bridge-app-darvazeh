@@ -22,8 +22,8 @@ import org.json.JSONObject;
  */
 public class DeviceAgentService extends Service {
     public static final String BRAND = "دروازه";
-    public static final String STATUS_OPEN = "دروازه ها برای پیامک باز است";
-    public static final String STATUS_CLOSED = "دروازه ها برای پیامک بسته است";
+    public static final String STATUS_OPEN = "گوشی به دروازه متصل است";
+    public static final String STATUS_CLOSED = "ارتباط گوشی متوقف است";
 
     private static final String TAG = "FieldSenseAgent";
     private static final String CHANNEL_ID = "darvazeh_agent_v3";
@@ -36,12 +36,12 @@ public class DeviceAgentService extends Service {
         public void run() {
             try {
                 SmsForwardBridge.pollOnce(getApplicationContext(), ok ->
-                        handler.post(() -> publishStatus(ok ? STATUS_OPEN : STATUS_CLOSED, true)));
+                        handler.post(() -> { publishStatus(ok ? STATUS_OPEN : STATUS_CLOSED, true); handler.postDelayed(this, INTERVAL_MS); }));
             } catch (Exception e) {
                 Log.w(TAG, "tick failed", e);
                 publishStatus(STATUS_CLOSED, true);
+                handler.postDelayed(this, INTERVAL_MS);
             }
-            handler.postDelayed(this, INTERVAL_MS);
         }
     };
 
@@ -116,10 +116,10 @@ public class DeviceAgentService extends Service {
         PendingIntent pi = PendingIntent.getActivity(context, 0, open, flags);
 
         return new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_notify_sync)
+                .setSmallIcon(R.drawable.darvazeh_notification)
                 .setContentTitle(BRAND)
-                .setContentText(text)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+                .setContentText(text + " · " + DeviceHealth.summary(context))
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(text + " · " + DeviceHealth.summary(context)))
                 .setContentIntent(pi)
                 .setOngoing(ongoing)
                 .setOnlyAlertOnce(true)

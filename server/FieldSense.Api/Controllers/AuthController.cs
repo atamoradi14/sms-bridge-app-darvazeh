@@ -23,11 +23,13 @@ public record VerifyOtpDto(
 
 [ApiController]
 [Route("api/auth")]
+[Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("password-auth")]
 public class AuthController(
     AppDbContext db,
     EmailOtpService emailOtp,
     JwtTokenService jwt,
-    IOptions<AppSettings> options) : ControllerBase
+    IOptions<AppSettings> options,
+    MembershipService membership) : ControllerBase
 {
     private readonly AppSettings _settings = options.Value;
 
@@ -48,20 +50,20 @@ public class AuthController(
     public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpDto dto)
     {
         var email = dto.Email.Trim().ToLowerInvariant();
-        if (!await emailOtp.VerifyOtpAsync(email, dto.Code))
-            return Unauthorized(new { error = "Invalid or expired code" });
-
         var isAdminEmail = string.Equals(email, _settings.AdminEmail.Trim(), StringComparison.OrdinalIgnoreCase);
-        if (isAdminEmail)
-        {
-            if (string.IsNullOrEmpty(dto.AdminPassword) ||
-                dto.AdminPassword != _settings.AdminPassword)
-            {
-                return Unauthorized(new { error = "Admin password required", needAdminPassword = true });
-            }
-        }
+        // A missing extra credential can prompt the administrator without consuming
+        // the code. Supplied credentials share the same attempt budget and error.
+        if (isAdminEmail && string.IsNullOrEmpty(dto.AdminPassword))
+            return Unauthorized(new { error = "رمز مدیریت را وارد کنید.", needAdminPassword = true });
+        var extraCredentialValid = !isAdminEmail || System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(dto.AdminPassword ?? ""),
+            System.Text.Encoding.UTF8.GetBytes(_settings.AdminPassword));
+        if (!await emailOtp.VerifyOtpAsync(email, dto.Code, extraCredentialValid))
+            return Unauthorized(new { error = "کد ورود یا اطلاعات حساب نادرست است یا اعتبار کد به پایان رسیده است." });
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
+        await using var transaction=await db.Database.BeginTransactionAsync();
+        var user = await db.Users.FirstOrDefaultAsync(u => u.DeletedAt==null && u.Email == email);
+        if(user?.DeletedAt!=null || user?.SuspendedAt!=null)return Unauthorized(new {code="account_unavailable"});
         if (user == null)
         {
             user = new AppUser
@@ -79,6 +81,8 @@ public class AuthController(
             user.CanRelaySms = true;
         }
 
+        await membership.VerifyEmail(user,independentLogin:true);
+        membership.Log(user.Id, "signed_in", (dto.Client ?? "web") == "web" ? "web" : "phone");
         user.LastLoginAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
@@ -87,7 +91,6 @@ public class AuthController(
         if (client is "phone" or "android" or "device")
         {
             var device = await UpsertPhoneDeviceAsync(user.Id, dto);
-            user.CanRelaySms = true;
             await db.SaveChangesAsync();
             devicePayload = new
             {
@@ -104,6 +107,7 @@ public class AuthController(
             };
         }
 
+        await transaction.CommitAsync();
         var token = jwt.CreateToken(user);
         return Ok(new
         {
@@ -115,7 +119,8 @@ public class AuthController(
                 role = user.Role.ToString(),
                 user.CanRelaySms,
                 user.ForwardEmailEnabled,
-                user.ForwardEmailAddress
+                user.ForwardEmailAddress,
+                subscription = await membership.Access(user.Id)
             },
             device = devicePayload
         });

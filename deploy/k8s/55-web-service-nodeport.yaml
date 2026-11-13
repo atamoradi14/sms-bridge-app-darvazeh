@@ -1,11 +1,11 @@
 # Optional NodePort for clusters without Ingress (laptop / bare metal).
-# Skip with: rm or --skip-nodeport (default apply includes it for easy local access).
-# On helsinki-server you can use Ingress instead and delete this file.
+# Excluded by default. Enable with --include-nodeport / -IncludeNodePort.
+# On ravand-worker-01 you can use Ingress instead and delete this file.
 apiVersion: v1
 kind: Service
 metadata:
   name: fieldsense-web-nodeport
-  namespace: sms-forwarder
+  namespace: darvazeh
   labels:
     app.kubernetes.io/name: fieldsense-web
     app.kubernetes.io/part-of: fieldsense
@@ -23,7 +23,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: fieldsense-api-nodeport
-  namespace: sms-forwarder
+  namespace: darvazeh
   labels:
     app.kubernetes.io/name: fieldsense-api
     app.kubernetes.io/part-of: fieldsense

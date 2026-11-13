@@ -1,6 +1,6 @@
 {
-  "apiBase": "https://aerospace-template-definitions-prostate.trycloudflare.com",
+  "apiBase": "https://api1.daryajan.com",
   "brand": "دروازه",
-  "note": "Temporary test tunnel to the API. Replace with your stable public API URL anytime — Android picks this up without a new APK.",
+  "note": "Stable Darvazeh API endpoint.",
   "updatedAt": "2026-11-11T03:01:00Z"
 }

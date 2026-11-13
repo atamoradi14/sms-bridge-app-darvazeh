@@ -68,3 +68,13 @@ next-env.d.ts
 # deploy local overrides
 /deploy/k8s/20-secret.local.yaml
 /deploy/k8s/*.local.yaml
+__pycache__/
+/.local/
+/.playwright-cli/
+/output/playwright/
+
+/scripts/email-outbox-tests/bin/
+/scripts/email-outbox-tests/obj/
+
+/scripts/google-auth-tests/bin/
+/scripts/google-auth-tests/obj/

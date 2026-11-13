@@ -1,135 +1,126 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-  Deploy FieldSense to Kubernetes namespace sms-forwarder.
-
-.DESCRIPTION
-  Default path uses SSH host alias "helsinki-server" (key auth) so you can run
-  this from your laptop while kubectl lives on that server.
-
+  Deploy Darvazeh into namespace darvazeh, pinned to ravand-worker-01.
 .EXAMPLE
   ./scripts/deploy.ps1 apply -Username myuser -Tag v2.0.1
-  ./scripts/deploy.ps1 apply -Local -SkipIngress
-  ./scripts/deploy.ps1 set-image -Tag v2.0.1
+  ./scripts/deploy.ps1 apply -Username myuser -DryRun
   ./scripts/deploy.ps1 status
+  ./scripts/deploy.ps1 status -SshHost ravand-worker-01
 #>
 [CmdletBinding()]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("apply", "set-image", "status", "delete")]
-  [string]$Mode = "apply",
-
-  [string]$Username = $(if ($env:DOCKERHUB_USERNAME) { $env:DOCKERHUB_USERNAME } elseif ($env:DOCKER_USER) { $env:DOCKER_USER } else { "" }),
-  [string]$Tag = $(if ($env:IMAGE_TAG) { $env:IMAGE_TAG } elseif ($env:TAG) { $env:TAG } else { "latest" }),
-  [string]$Namespace = $(if ($env:NAMESPACE) { $env:NAMESPACE } else { "sms-forwarder" }),
-  [string]$SshHost = $(if ($env:SSH_HOST) { $env:SSH_HOST } else { "helsinki-server" }),
+  [ValidateSet('apply', 'set-image', 'status', 'delete')]
+  [string]$Mode = 'apply',
+  [string]$Username = $(if ($env:DOCKERHUB_USERNAME) { $env:DOCKERHUB_USERNAME } else { $env:DOCKER_USER }),
+  [string]$Tag = $(if ($env:IMAGE_TAG) { $env:IMAGE_TAG } else { 'latest' }),
+  [ValidateSet('darvazeh')][string]$Namespace = 'darvazeh',
+  [string]$Context = 'ravand',
+  [string]$SshHost = $env:SSH_HOST,
   [switch]$Local,
+  [switch]$IncludeIngress,
+  [switch]$IncludeNodePort,
   [switch]$SkipIngress,
   [switch]$DryRun
 )
-
-$ErrorActionPreference = "Stop"
-$Root = Resolve-Path (Join-Path $PSScriptRoot "..")
-Set-Location $Root
-
-$UseSsh = -not $Local
-if ($Mode -in @("apply", "set-image") -and [string]::IsNullOrWhiteSpace($Username)) {
-  throw "Set -Username or DOCKERHUB_USERNAME"
+$ErrorActionPreference = 'Stop'
+$Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'deployment-env.ps1')
+if ($Mode -in @('apply', 'set-image')) {
+  Import-DeploymentEnv $Root
+  if (-not $PSBoundParameters.ContainsKey('Username')) { $Username = $env:DOCKERHUB_USERNAME }
+  if (-not $PSBoundParameters.ContainsKey('Tag') -and $env:IMAGE_TAG) { $Tag = $env:IMAGE_TAG }
+  & python (Join-Path $PSScriptRoot 'deployment-env.py') check
+  if ($LASTEXITCODE -ne 0) { throw 'Deployment .env validation failed' }
 }
+$UseSsh = $SshHost -and -not $Local
+if ($UseSsh -and $SshHost -ne 'ravand-worker-01') { throw 'SSH target must be ravand-worker-01' }
+if ($Context -notmatch '^[a-zA-Z0-9_.-]+$') { throw 'Invalid context name' }
+if ($Mode -in @('apply', 'set-image') -and $Username -notmatch '^[a-z0-9][a-z0-9_-]*$') { throw 'Set -Username or DOCKERHUB_USERNAME to a Docker Hub user/org' }
+if ($Tag -notmatch '^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$') { throw 'Invalid image tag' }
 
-$ApiImage = "$Username/fieldsense-api:$Tag"
-$WebImage = "$Username/fieldsense-web:$Tag"
-
-function Render-Manifests([string]$OutDir) {
-  New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-  Get-ChildItem (Join-Path $Root "deploy/k8s/*.yaml") | ForEach-Object {
-    if ($_.Name -eq "kustomization.yaml") { return }
-    if ($_.Name -eq "20-secret.example.yaml") { return }
-    if ($SkipIngress -and $_.Name -eq "60-ingress.yaml") { return }
-    $content = Get-Content $_.FullName -Raw
-    $content = $content.Replace("DOCKERHUB_USERNAME", $Username).Replace("IMAGE_TAG", $Tag)
-    Set-Content -Path (Join-Path $OutDir $_.Name) -Value $content -NoNewline
+function Invoke-Native([string]$Command, [string[]]$Arguments) {
+  & $Command @Arguments
+  if ($LASTEXITCODE -ne 0) { throw "$Command failed with exit code $LASTEXITCODE" }
+}
+function Invoke-Kube([string[]]$Arguments) {
+  if ($UseSsh) {
+    # Remote arguments come from internal commands or validated parameters.
+    # Quote every argument for the remote POSIX shell, including JSONPath braces.
+    $quoted = foreach ($arg in (@('--context', $Context, '-n', $Namespace) + $Arguments)) {
+      "'" + $arg.Replace("'", "'\''") + "'"
+    }
+    Invoke-Native 'ssh' @('-o', 'BatchMode=yes', $SshHost, "kubectl $($quoted -join ' ')")
+  } else {
+    Invoke-Native 'kubectl' (@('--context', $Context, '-n', $Namespace) + $Arguments)
   }
 }
+function Wait-Rollouts {
+  foreach ($name in @('fieldsense-api', 'fieldsense-web')) {
+    Invoke-Kube @('rollout', 'status', "deployment/$name", '--timeout=180s')
+  }
+  Invoke-Kube @('get', 'pods', '-o', 'wide')
+}
 
-Write-Host "==> Mode: $Mode"
-Write-Host "==> Namespace: $Namespace"
-Write-Host "==> SSH: $(if ($UseSsh) { $SshHost } else { 'disabled (local kubectl)' })"
-if ($Username) { Write-Host "==> Images: $ApiImage , $WebImage" }
-
+Write-Host "==> $Mode | namespace=$Namespace | node=ravand-worker-01 | context=$Context"
 switch ($Mode) {
-  "apply" {
-    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("fieldsense-k8s-" + [guid]::NewGuid().ToString("n"))
-    Render-Manifests $tmp
+  'apply' {
+    $tmp = Join-Path ([IO.Path]::GetTempPath()) ('darvazeh-k8s-' + [guid]::NewGuid().ToString('n'))
+    New-Item -ItemType Directory -Path $tmp | Out-Null
+    $remoteDir = $null
     try {
+      foreach ($file in Get-ChildItem (Join-Path $Root 'deploy/k8s') -Filter '*.yaml') {
+        if ($file.Name -in @('kustomization.yaml', '20-secret.example.yaml') -or $file.Name -like '*.local.yaml') { continue }
+        if ($file.Name -eq '60-ingress.yaml' -and (-not $IncludeIngress -or $SkipIngress)) { continue }
+        if ($file.Name -eq '55-web-service-nodeport.yaml' -and -not $IncludeNodePort) { continue }
+        $content = (Get-Content $file.FullName -Raw).Replace('DOCKERHUB_USERNAME', $Username).Replace('IMAGE_TAG', $Tag)
+        if ($content -match 'DOCKERHUB_USERNAME|IMAGE_TAG') { throw "Unresolved manifest: $($file.Name)" }
+        [IO.File]::WriteAllText((Join-Path $tmp $file.Name), $content)
+      }
+      Invoke-Native 'python' @((Join-Path $PSScriptRoot 'deployment-env.py'), 'render', '--output', $tmp)
       if ($DryRun) {
-        Write-Host "==> Dry-run manifests in $tmp"
-        Get-ChildItem $tmp | Format-Table Name
-        $files = Get-ChildItem $tmp -Filter *.yaml
-        if (-not $files) { throw "no manifests rendered" }
-        foreach ($f in $files) {
-          $text = Get-Content $f.FullName -Raw
-          if ($text -match "DOCKERHUB_USERNAME") { throw "unsubstituted placeholder in $($f.Name)" }
-          if ($text -notmatch "apiVersion:" -or $text -notmatch "kind:") { throw "invalid manifest $($f.Name)" }
-        }
-        Write-Host "==> validated $($files.Count) manifest files"
-        if ((Get-Command kubectl -ErrorAction SilentlyContinue) -and (kubectl cluster-info 2>$null)) {
-          kubectl apply --dry-run=client --validate=$false -f $tmp | Out-Null
-          Write-Host "==> kubectl apply --dry-run=client OK"
-        } else {
-          Write-Host "==> No local cluster; skipped kubectl dry-run"
-        }
+        Get-ChildItem $tmp | Select-Object Name
+        Write-Host '==> Render completed; no cluster changes'
         break
       }
+      Invoke-Kube @('get', 'node', 'ravand-worker-01')
       if ($UseSsh) {
-        Write-Host "==> Copying manifests to ${SshHost}:/tmp/fieldsense-k8s-$Namespace"
-        ssh -o BatchMode=yes $SshHost "rm -rf /tmp/fieldsense-k8s-$Namespace && mkdir -p /tmp/fieldsense-k8s-$Namespace"
-        scp -o BatchMode=yes -q -r "$tmp\*" "${SshHost}:/tmp/fieldsense-k8s-$Namespace/"
-        ssh -o BatchMode=yes $SshHost "kubectl apply -f /tmp/fieldsense-k8s-$Namespace && kubectl -n $Namespace rollout status deployment/fieldsense-api --timeout=180s && kubectl -n $Namespace rollout status deployment/fieldsense-web --timeout=180s"
-      } else {
-        kubectl apply -f $tmp
-        kubectl -n $Namespace rollout status deployment/fieldsense-api --timeout=180s
-        kubectl -n $Namespace rollout status deployment/fieldsense-web --timeout=180s
-      }
+        $remoteDir = '/tmp/darvazeh-k8s-' + [guid]::NewGuid().ToString('n')
+        Invoke-Native 'ssh' @('-o', 'BatchMode=yes', $SshHost, "mkdir -m 700 $remoteDir")
+        foreach ($file in Get-ChildItem $tmp -Filter '*.yaml') {
+          Invoke-Native 'scp' @('-o', 'BatchMode=yes', '-q', $file.FullName, "${SshHost}:$remoteDir/")
+        }
+        $manifestDir = $remoteDir
+      } else { $manifestDir = $tmp }
+      Invoke-Kube @('apply', '-f', "$manifestDir/00-namespace.yaml")
+      Invoke-Kube @('apply', '--dry-run=server', '-f', $manifestDir)
+      Invoke-Kube @('apply', '-f', $manifestDir)
+      Wait-Rollouts
     } finally {
-      Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+      if ($remoteDir) { & ssh -o BatchMode=yes $SshHost "rm -rf -- $remoteDir" }
+      # Verify the absolute deletion target remains the unique directory under Temp.
+      $resolvedTmp = [IO.Path]::GetFullPath($tmp)
+      $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+      if ($resolvedTmp.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase) -and (Split-Path $resolvedTmp -Leaf) -match '^darvazeh-k8s-[a-f0-9]{32}$') {
+        Remove-Item -LiteralPath $resolvedTmp -Recurse -Force -ErrorAction SilentlyContinue
+      }
     }
   }
-  "set-image" {
-    if ($DryRun) {
-      Write-Host "Would set api=$ApiImage web=$WebImage"
-      break
+  'set-image' {
+    if ($DryRun) { Write-Host "Would deploy $Username/fieldsense-api:$Tag and $Username/fieldsense-web:$Tag"; break }
+    foreach ($name in @('fieldsense-api', 'fieldsense-web')) {
+      $selector = Invoke-Kube @('get', "deployment/$name", '-o', 'jsonpath={.spec.template.spec.nodeSelector.kubernetes\.io/hostname}')
+      if (($selector -join '').Trim() -ne 'ravand-worker-01') { throw "Run apply first: $name is not pinned to ravand-worker-01" }
     }
-    if ($UseSsh) {
-      $remote = @"
-set -euo pipefail
-kubectl -n $Namespace set image deployment/fieldsense-api api=$ApiImage
-kubectl -n $Namespace set image deployment/fieldsense-web web=$WebImage
-kubectl -n $Namespace rollout status deployment/fieldsense-api --timeout=180s
-kubectl -n $Namespace rollout status deployment/fieldsense-web --timeout=180s
-"@
-      $remote | ssh -o BatchMode=yes $SshHost bash -s
-    } else {
-      kubectl -n $Namespace set image deployment/fieldsense-api "api=$ApiImage"
-      kubectl -n $Namespace set image deployment/fieldsense-web "web=$WebImage"
-      kubectl -n $Namespace rollout status deployment/fieldsense-api --timeout=180s
-      kubectl -n $Namespace rollout status deployment/fieldsense-web --timeout=180s
-    }
+    Invoke-Kube @('set', 'image', 'deployment/fieldsense-api', "api=$Username/fieldsense-api:$Tag")
+    Invoke-Kube @('set', 'image', 'deployment/fieldsense-web', "web=$Username/fieldsense-web:$Tag")
+    Wait-Rollouts
   }
-  "status" {
-    if ($UseSsh) {
-      ssh -o BatchMode=yes $SshHost "kubectl -n $Namespace get all,ingress,pvc,configmap,secret"
-    } else {
-      kubectl -n $Namespace get all,ingress,pvc,configmap,secret
-    }
-  }
-  "delete" {
-    if ($UseSsh) {
-      ssh -o BatchMode=yes $SshHost "kubectl delete namespace $Namespace --ignore-not-found"
-    } else {
-      kubectl delete namespace $Namespace --ignore-not-found
-    }
+  'status' { Invoke-Kube @('get', 'deployments,pods,services,ingress,pvc', '-o', 'wide') }
+  'delete' {
+    if ($DryRun) { Write-Host 'Would delete namespace darvazeh'; break }
+    Invoke-Kube @('delete', 'namespace', $Namespace, '--ignore-not-found')
   }
 }
-
-Write-Host "==> Done"
+Write-Host '==> Done'

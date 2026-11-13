@@ -1,0 +1,29 @@
+{
+  "release": "release-20261113-02",
+  "verifiedAtUtc": "2026-11-12T20:49:34Z",
+  "images": {
+    "api": "sha256:c67f3b26e22138a71b71691436425033d1ebba93761fd2232c728ccc1bc64eb7",
+    "web": "sha256:abc83e0c6a1f654eeb04b58dffee54235ab6778cf7e9138b6851218bcfc763a1"
+  },
+  "googleEnabled": false,
+  "googleRedirectUri": "https://api1.daryajan.com/api/auth/google/callback",
+  "passwordPolicy": {
+    "minimumCharacters": 8,
+    "maximumCharacters": 128,
+    "confirmationRequired": true,
+    "rejectCommonRepetitivePersonal": true
+  },
+  "verification": [
+    "API and web builds",
+    "password-auth HTTP/SQLite suite including 8-character passwords and OTP reset",
+    "Google signed-token and HTTP/SQLite fixture suite, production-secure cookies, state/nonce/PKCE/audience/issuer/expiry/replay and account/admin boundaries",
+    "membership, billing, device health and email-outbox suites",
+    "eight environment checks including Google secret separation",
+    "browser signup/confirmation mismatch/OTP reset/old-password failure/new-password success/mobile disabled Google option",
+    "production policy/configuration/health checks",
+    "Simulated Google return browser path: exactly one exchange, fragment removed, signed-in account loaded"
+  ],
+  "limitations": [
+    "Live Google authorization requires the client ID and secret plus consent/redirect configuration; simulated tests do not verify a real Google project"
+  ]
+}

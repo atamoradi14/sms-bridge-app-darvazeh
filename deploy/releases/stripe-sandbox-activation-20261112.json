@@ -1,0 +1,27 @@
+{
+  "verifiedAtUtc": "2026-11-11T23:38:01Z",
+  "apiRelease": "release-20261112-02",
+  "webRelease": "release-20261112-01",
+  "mode": "sandbox",
+  "country": "NZ",
+  "stripeEnabled": true,
+  "silverUsdCents": 500,
+  "checkoutMode": "payment",
+  "recurring": false,
+  "verification": [
+    "sandbox secret authenticated",
+    "webhook enabled with required five events",
+    "worker rollout healthy",
+    "actual hosted Stripe checkout HTTP 200 and USD 5 verified",
+    "actual Stripe checkout.session.expired webhook processed without reconciliation",
+    "no charge made; no membership granted"
+  ],
+  "remaining": [
+    "Complete a successful sandbox card payment to verify paid fulfillment end to end",
+    "Live account activation and separate live credentials/webhook",
+    "Toman price and Ezpay merchant integration later"
+  ],
+  "apiImageDigest": "sha256:f466c1f3b9dab0f12993891ebb2c09ed1676688fb03858d4cdb61d288cbdfc01",
+  "apiCompatibilityFix": "Use Dashboard-managed payment methods; omit obsolete payment_method_types request parameter",
+  "regression": "Billing HTTP/SQLite/Stripe fixture suite passed; build passed with zero warnings/errors"
+}

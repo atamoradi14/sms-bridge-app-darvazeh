@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: fieldsense-web
-  namespace: sms-forwarder
+  namespace: darvazeh
   labels:
     app.kubernetes.io/name: fieldsense-web
     app.kubernetes.io/part-of: fieldsense
@@ -13,10 +13,16 @@ spec:
       app.kubernetes.io/name: fieldsense-web
   template:
     metadata:
+      annotations:
+        darvazeh/config-hash: DEPLOYMENT_CONFIG_HASH
       labels:
         app.kubernetes.io/name: fieldsense-web
         app.kubernetes.io/part-of: fieldsense
     spec:
+      imagePullSecrets:
+        - name: darvazeh-registry
+      nodeSelector:
+        kubernetes.io/hostname: ravand-worker-01
       containers:
         - name: web
           image: DOCKERHUB_USERNAME/fieldsense-web:IMAGE_TAG
@@ -25,6 +31,9 @@ spec:
             - name: http
               containerPort: 80
           volumeMounts:
+            - name: web-config
+              mountPath: /usr/share/nginx/html/mobile-config.json
+              subPath: mobile-config.json
             - name: web-config
               mountPath: /usr/share/nginx/html/config.js
               subPath: config.js
@@ -58,7 +67,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: fieldsense-web
-  namespace: sms-forwarder
+  namespace: darvazeh
   labels:
     app.kubernetes.io/name: fieldsense-web
     app.kubernetes.io/part-of: fieldsense

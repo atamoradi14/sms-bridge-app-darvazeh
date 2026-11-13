@@ -1,0 +1,17 @@
+# Append to the worker's existing Hamafarin Caddyfile. Its global acme_dns
+# configuration supplies Cloudflare DNS challenges for both hostnames.
+# BEGIN DARVAZEH PUBLIC ENDPOINTS
+darvazeh.daryajan.com {
+	@api path /api /api/* /health /health/* /swagger /swagger/*
+	handle @api {
+		reverse_proxy fieldsense-api.darvazeh.svc.cluster.local:8080
+	}
+	handle {
+		reverse_proxy fieldsense-web.darvazeh.svc.cluster.local:80
+	}
+}
+
+api1.daryajan.com {
+	reverse_proxy fieldsense-api.darvazeh.svc.cluster.local:8080
+}
+# END DARVAZEH PUBLIC ENDPOINTS

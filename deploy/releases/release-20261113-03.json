@@ -1,0 +1,24 @@
+{
+  "release": "release-20261113-03",
+  "images": {
+    "api": "sha256:f82f1fb789dbd78d81a3181e1a7eae14a986b350c544b2f66716f28bc17aeab9",
+    "web": "sha256:3e1a2ac663c2b0dd3a1dff1a34fd398d1ca4b03cc1c040f39064e0b8c7f3605d"
+  },
+  "verifiedAtUtc": "2026-11-12T23:13:16Z",
+  "minimumNewPasswordCharacters": 9,
+  "signupUsernameRequired": false,
+  "signupOtpRequired": true,
+  "persianTagline": "دروازه ای برای ارتباطات شما",
+  "apkVersion": "2.2.1",
+  "apkVersionCode": 8,
+  "apkSha256": "dd2c115341b4462f1cd6adb5357eefffcf34f5e5c33ced5c5ca70ed56cbaa588",
+  "verification": [
+    "API/web/Android builds",
+    "password auth and Google security regression suites",
+    "browser no username field, 8 rejected/9 accepted and full signup with OTP",
+    "same APK signing certificate",
+    "production password length/confirmation and OTP boundary",
+    "published APK checksum"
+  ],
+  "scope": "Website, OTP email tagline and Android branding; existing username sign-in preserved"
+}

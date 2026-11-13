@@ -1,0 +1,22 @@
+{
+  "verifiedAtUtc": "2026-11-12T00:32:14Z",
+  "apiRelease": "release-20261112-02",
+  "webRelease": "release-20261112-01",
+  "mode": "live",
+  "stripeEnabled": true,
+  "silverUsdCents": 500,
+  "checkoutMode": "payment",
+  "recurring": false,
+  "verification": [
+    "restricted live secret authenticated against Checkout API",
+    "catalog live flag verified",
+    "actual live hosted checkout HTTP 200 and USD 5 verified",
+    "actual live Stripe checkout.session.expired webhook processed without reconciliation",
+    "no card charge made and no entitlement granted",
+    "SQLite integrity check passed"
+  ],
+  "limitations": [
+    "Restricted key cannot read Stripe account activation fields or webhook configuration listing",
+    "No real card payment performed during deployment"
+  ]
+}

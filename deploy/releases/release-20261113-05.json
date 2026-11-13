@@ -1,0 +1,24 @@
+{
+  "release": "release-20261113-05",
+  "verifiedAtUtc": "2026-11-13T03:31:06Z",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:ade12ec0c2119c78fdc4572336f6b35c39a5e8c2c96a49454699bc826f361f4a",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:44a8259114ef41ad670e636f73c9efd99539d6d07ba75406d74a93182c395700"
+  },
+  "adminOtpRequired": false,
+  "liveAdminPasswordLoginVerified": true,
+  "productionDataPreserved": true,
+  "verification": [
+    "admin policy and user/device CRUD boundaries",
+    "message search/paging/deletion and quota preservation",
+    "password/activation/profile",
+    "Google token/flow",
+    "membership",
+    "billing",
+    "device health/link",
+    "mail outbox",
+    "environment",
+    "browser admin login/create/suspend/security settings/message history/mobile",
+    "live migration/password sign-in/read-only routes/assets"
+  ]
+}

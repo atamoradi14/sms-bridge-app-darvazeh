@@ -1,0 +1,49 @@
+{
+  "verifiedAtUtc": "2026-11-12T01:05:43Z",
+  "release": "release-20261112-03",
+  "apkVersion": "2.2.0",
+  "apkVersionCode": 7,
+  "apkSha256": "8ad88d46d2a611a7052abaa94fd91feea20ab0193d0f9ecc2083d1540a393dbd",
+  "images": {
+    "api": "sha256:e935e01644bc2e7c9fdbcb2820e10aa7c5bad3e76a844ad934057d995e39df22",
+    "web": "sha256:01d07842f5bca1110405b370c0c94975b271bb5977e4c4130587910270ac8da6"
+  },
+  "plans": {
+    "trial": {
+      "durationDays": 3,
+      "messageLimit": 20,
+      "emailForwardLimit": 20,
+      "priceUsdCents": 0,
+      "priceToman": 0
+    },
+    "silver": {
+      "durationDays": 30,
+      "messageLimit": 200,
+      "emailForwardLimit": 10,
+      "priceUsdCents": 200,
+      "priceToman": null
+    },
+    "gold": {
+      "durationDays": 30,
+      "messageLimit": 200,
+      "emailForwardLimit": 200,
+      "priceUsdCents": 300,
+      "priceToman": null
+    }
+  },
+  "verification": [
+    "API/web/Android builds",
+    "same APK signing certificate",
+    "membership and billing HTTP/SQLite suites",
+    "browser-approved device linking/ownership/switch/replay/expiry tests",
+    "forwarding quota and health-alert recovery tests",
+    "browser waiting/approval/connected/health display flow",
+    "production live Silver and Gold checkout amounts and signed expiry webhooks",
+    "public APK checksum"
+  ],
+  "limitations": [
+    "Real phone/SIM background execution and battery sensor values require physical device verification",
+    "Browser notifications require open portal; no closed-browser push or automatic alert email",
+    "Offline alert cannot distinguish lost internet, stopped application, and dead battery"
+  ]
+}

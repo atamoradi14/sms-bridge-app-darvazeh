@@ -1,0 +1,21 @@
+{
+  "verifiedAtUtc": "2026-11-12T02:10:46Z",
+  "increaseUsdCents": 50,
+  "changes": [
+    {
+      "id": "f01a24df-74e7-49fb-831c-ff44b423b332",
+      "code": "gold",
+      "before": 300,
+      "after": 350
+    },
+    {
+      "id": "97986740-c971-425d-9646-75532e7fd3b8",
+      "code": "silver",
+      "before": 200,
+      "after": 250
+    }
+  ],
+  "trialFree": true,
+  "checkoutVerified": true,
+  "cardCharged": false
+}

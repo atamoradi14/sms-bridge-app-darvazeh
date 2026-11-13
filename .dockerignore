@@ -1,0 +1,14 @@
+.git
+.local
+.playwright-cli
+output
+**/.env
+**/.env.*
+**/node_modules
+**/bin
+**/obj
+**/dist
+.next
+android-companion
+deploy/k8s/*secret*.yaml
+*.log
