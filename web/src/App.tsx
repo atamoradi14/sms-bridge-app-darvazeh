@@ -5,6 +5,7 @@ import {GoogleLogin} from "./GoogleLogin";
 import {PasswordAccess,EmailDiagnostics} from "./PasswordAccess";
 import {Phones} from "./Phones";
 import { BillingPanel, PlanManager, AdminPayments } from "./Billing";
+import { PaymentWalletAdmin } from "./PaymentWallet";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   api,
@@ -786,6 +787,7 @@ export default function App() {
               }
             />
           </section>
+          <PaymentWalletAdmin lang={lang} />
           <AdminPayments lang={lang} />
           <section className="card">
             <h2>{tr("فعالیت‌های تازه", "Recent activity")}</h2>

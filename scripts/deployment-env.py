@@ -12,7 +12,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET_KEYS = ('FieldSense__AdminPassword', 'FieldSense__JwtKey', 'FieldSense__AcsConnectionString')
-OPTIONAL_SECRET_KEYS = ('Billing__StripeSecretKey', 'Billing__StripeWebhookSecret', 'Google__ClientSecret')
+OPTIONAL_SECRET_KEYS = ('Billing__StripeSecretKey', 'Billing__StripeWebhookSecret', 'Billing__PaymentRelayApiKey', 'Google__ClientSecret')
 OPTIONAL_CONFIG = {
     'Google__Enabled': 'false',
     'Google__ClientId': '',
@@ -22,6 +22,9 @@ OPTIONAL_CONFIG = {
     'Billing__PortalOrigin': 'https://darvazeh.daryajan.com',
     'Billing__LegalName': 'Niliarya Limited',
     'Billing__TradingName': 'ND ORBIT',
+    # Toman checkout: the Iran-hosted Ezpay relay (/broker routes); the receiving wallet is connected on the admin page.
+    'Billing__EzpayEnabled': 'false',
+    'Billing__PaymentRelayEndpoint': '',
 }
 CONFIG_KEYS = ('FieldSense__AdminEmail', 'FieldSense__AcsSenderAddress', 'FieldSense__AcsMock',
                'FieldSense__CorsOrigin', 'FieldSense__PublicApiBase')
@@ -92,6 +95,14 @@ def validate(values, build_only=False):
             errors.append('Set a valid Billing__StripeSecretKey before enabling USD checkout')
         if not values.get('Billing__StripeWebhookSecret', '').startswith('whsec_'):
             errors.append('Set Billing__StripeWebhookSecret before enabling USD checkout')
+    ezpay_enabled = values.get('Billing__EzpayEnabled', 'false').lower()
+    if ezpay_enabled not in ('true', 'false'):
+        errors.append('Billing__EzpayEnabled must be true or false')
+    if ezpay_enabled == 'true':
+        if not re.fullmatch(r'https://[A-Za-z0-9.-]+(?::[0-9]+)?', values.get('Billing__PaymentRelayEndpoint', '').rstrip('/')):
+            errors.append('Set Billing__PaymentRelayEndpoint to the HTTPS Iran payment relay origin before enabling toman checkout')
+        if len(values.get('Billing__PaymentRelayApiKey', '')) < 16:
+            errors.append('Set Billing__PaymentRelayApiKey (the relay x-api-key) before enabling toman checkout')
     if not re.fullmatch(r'https://[A-Za-z0-9.-]+(?::[0-9]+)?', values.get('Billing__PortalOrigin', OPTIONAL_CONFIG['Billing__PortalOrigin']).rstrip('/')):
         errors.append('Billing__PortalOrigin must be a public HTTPS origin')
     google_enabled = values.get('Google__Enabled', 'false').lower()

@@ -22,10 +22,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<EmailDispatch> EmailDispatches => Set<EmailDispatch>();
     public DbSet<DeviceLinkRequest> DeviceLinks => Set<DeviceLinkRequest>();
     public DbSet<DeviceAlert> DeviceAlerts => Set<DeviceAlert>();
+    public DbSet<PaymentWallet> PaymentWallets => Set<PaymentWallet>();
+    public DbSet<WalletOwner> WalletOwners => Set<WalletOwner>();
+    public DbSet<WalletPhoneProof> WalletPhoneProofs => Set<WalletPhoneProof>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<DeviceLinkRequest>().HasIndex(r => new { r.Email, r.CreatedAt });
+        modelBuilder.Entity<PaymentWallet>().Property(w => w.Id).ValueGeneratedNever();
+        modelBuilder.Entity<WalletOwner>().HasKey(o => o.PhoneNumber);
+        modelBuilder.Entity<WalletPhoneProof>().HasIndex(p => new { p.PhoneNumber, p.CreatedAt });
         modelBuilder.Entity<DeviceAlert>().HasIndex(a => new { a.DeviceId, a.Kind }).IsUnique().HasFilter("ResolvedAt IS NULL");
         modelBuilder.Entity<AppUser>().HasIndex(u => u.GoogleSubject).IsUnique();
         modelBuilder.Entity<AppUser>().HasIndex(u => u.Username).IsUnique().HasFilter("DeletedAt IS NULL");

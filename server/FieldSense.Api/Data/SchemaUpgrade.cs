@@ -138,6 +138,20 @@ public static class SchemaUpgrade
             CREATE TABLE IF NOT EXISTS AppMigrations (Id TEXT NOT NULL PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS TrialClaims (Key TEXT NOT NULL PRIMARY KEY, UserId TEXT NOT NULL);
             """);
+        // Toman payments through the Ezpay relay into Darvazeh's own default wallet.
+        await AddColumn("PaymentOrders", "ReceivingPhone", "TEXT NULL");
+        await AddColumn("PaymentOrders", "ProviderUniqueId", "TEXT NULL");
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS PaymentWallets (Id INTEGER NOT NULL PRIMARY KEY, PhoneNumber TEXT NULL, ConnectedAt TEXT NULL,
+              ConnectedByUserId TEXT NULL, MerchantEnabled INTEGER NOT NULL DEFAULT 0, PendingPhoneNumber TEXT NULL, RequestUid TEXT NULL,
+              ChallengeId TEXT NULL, ChallengeUserId TEXT NULL, ChallengeExpiresAt TEXT NULL, LastOtpAt TEXT NULL, FailedAttempts INTEGER NOT NULL DEFAULT 0);
+            INSERT OR IGNORE INTO PaymentWallets(Id,MerchantEnabled,FailedAttempts) VALUES(1,0,0);
+            CREATE TABLE IF NOT EXISTS WalletOwners (PhoneNumber TEXT NOT NULL PRIMARY KEY, OwnerUserId TEXT NOT NULL, VerifiedAt TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS WalletPhoneProofs (Id TEXT NOT NULL PRIMARY KEY, UserId TEXT NOT NULL, PhoneNumber TEXT NOT NULL,
+              CodeHash TEXT NOT NULL, Attempts INTEGER NOT NULL, Consumed INTEGER NOT NULL, RequestedFromIp TEXT NULL,
+              CreatedAt TEXT NOT NULL, ExpiresAt TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS IX_WalletPhoneProofs_PhoneNumber_CreatedAt ON WalletPhoneProofs(PhoneNumber,CreatedAt);
+            """);
         if (addedFeatureOverrides)
             await db.Database.ExecuteSqlRawAsync("""
                 UPDATE Users SET SendOverride=(SELECT CASE WHEN s.SendEnabled<>p.SendEnabled THEN s.SendEnabled ELSE NULL END

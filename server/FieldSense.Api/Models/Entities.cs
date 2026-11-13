@@ -168,6 +168,9 @@ public class PaymentOrder
     public string? ProviderSessionId { get; set; }
     public string? ProviderPaymentId { get; set; }
     public string? CheckoutUrl { get; set; }
+    /// <summary>Ezpay orders: the wallet the link pays into and the broker's link id (uniqueId), kept for status checks.</summary>
+    public string? ReceivingPhone { get; set; }
+    public string? ProviderUniqueId { get; set; }
     public string ReturnOrigin { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ExpiresAt { get; set; }
@@ -261,4 +264,47 @@ public class GoogleLoginFlow {
     public int AuthVersion {get;set;}
     public string? ResultCodeHash {get;set;}
     public DateTime? ResultExpiresAt {get;set;}
+}
+
+
+/// <summary>
+/// Darvazeh's default receiving wallet (single row, Id = 1), connected by phone number on the admin wallet page, like Ravand's
+/// superadmin wallet: Ezpay consent code, or phone-ownership proof when Ezpay already has broker access. Toman payments go here.
+/// </summary>
+public class PaymentWallet
+{
+    public int Id { get; set; } = 1;
+    public string? PhoneNumber { get; set; }
+    public DateTime? ConnectedAt { get; set; }
+    public Guid? ConnectedByUserId { get; set; }
+    public bool MerchantEnabled { get; set; }
+    public string? PendingPhoneNumber { get; set; }
+    public string? RequestUid { get; set; }
+    public Guid? ChallengeId { get; set; }
+    public Guid? ChallengeUserId { get; set; }
+    public DateTime? ChallengeExpiresAt { get; set; }
+    public DateTime? LastOtpAt { get; set; }
+    public int FailedAttempts { get; set; }
+}
+
+/// <summary>A wallet phone whose ownership an admin proved (Ezpay consent or SMS code), so it can be selected again without a code.</summary>
+public class WalletOwner
+{
+    public string PhoneNumber { get; set; } = "";
+    public Guid OwnerUserId { get; set; }
+    public DateTime VerifiedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>One-time SMS code proving the admin holds a wallet phone (sent through the admin's linked Darvazeh phone).</summary>
+public class WalletPhoneProof
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public string PhoneNumber { get; set; } = "";
+    public string CodeHash { get; set; } = "";
+    public int Attempts { get; set; }
+    public bool Consumed { get; set; }
+    public string? RequestedFromIp { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ExpiresAt { get; set; }
 }

@@ -261,4 +261,54 @@ export const api = {
       "POST",
       {},
     ),
+  // Default receiving wallet for toman payments (owner only), connected by phone number.
+  wallet: () => req<WalletView>("/api/admin/wallet"),
+  walletReusable: () =>
+    req<{ phoneNumber: string; verifiedAt: string }[]>("/api/admin/wallet/reusable"),
+  walletConnect: (phoneNumber: string) =>
+    send<WalletView>("/api/admin/wallet/connection", "POST", { phoneNumber }),
+  walletReuse: (phoneNumber: string) =>
+    send<WalletView>("/api/admin/wallet/reuse", "POST", { phoneNumber }),
+  walletRequestProof: (phoneNumber: string) =>
+    send<{ sent: boolean }>("/api/admin/wallet/phone-proof/request", "POST", { phoneNumber }),
+  walletConfirmProof: (phoneNumber: string, code: string) =>
+    send<WalletView>("/api/admin/wallet/phone-proof/confirm", "POST", { phoneNumber, code }),
+  walletConfirm: (challenge: string, verifyCode: string) =>
+    send<WalletView>(`/api/admin/wallet/consent/${encodeURIComponent(challenge)}`, "PUT", { verifyCode }),
+  walletResend: (challenge: string) =>
+    send<WalletView>(`/api/admin/wallet/consent/${encodeURIComponent(challenge)}/resend`, "POST", {}),
+  walletMerchant: (enabled: boolean) =>
+    send<WalletView>("/api/admin/wallet/merchant", "PUT", { enabled }),
+  walletDisconnect: () => req<unknown>("/api/admin/wallet", { method: "DELETE" }),
+  walletBalances: () =>
+    req<{ accountType: string; balance: string; availableBalance: string }[]>("/api/admin/wallet/balances"),
+  walletHistory: (page: number) =>
+    req<WalletHistory>(`/api/admin/wallet/history?currentPage=${page}`),
+  walletTransactions: (page: number) =>
+    req<WalletTransactions>(`/api/admin/wallet/transactions?currentPage=${page}`),
+};
+export type WalletView = {
+  connection: {
+    status: "Connected" | "PendingConsent" | "Disconnected";
+    phoneNumber?: string | null;
+    connectedAt?: string | null;
+    challengeId?: string | null;
+    challengeExpiresAt?: string | null;
+    pendingPhoneNumber?: string | null;
+  };
+  merchantEnabled: boolean;
+  purchaseReady: boolean;
+  readinessReason: string;
+  providerStatus?: { access: string; identityVerified?: boolean | null; level?: string | null } | null;
+  relayConfigured: boolean;
+};
+export type WalletHistory = {
+  currentPage: number;
+  total: number;
+  items: { amount: string; description?: string | null; fromOrTo?: string | null; transactionNumber?: string | null; utcTimestamp: number; balance: string }[];
+};
+export type WalletTransactions = {
+  currentPage: number;
+  total: number;
+  items: { id: string; email: string; planName: string; receivingPhone?: string | null; amountMinor: number; currency: string; status: string; providerPaymentId?: string | null; createdAt: string; paidAt?: string | null }[];
 };

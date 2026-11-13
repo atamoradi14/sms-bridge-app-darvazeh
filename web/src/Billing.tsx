@@ -129,7 +129,11 @@ export function BillingPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const request = useRef<{ planId: string; key: string } | null>(null);
+  const request = useRef<{
+    planId: string;
+    currency: string;
+    key: string;
+  } | null>(null);
   const changed = useRef(onMembershipChanged);
   changed.current = onMembershipChanged;
   async function load() {
@@ -144,13 +148,16 @@ export function BillingPanel({
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const params = new URLSearchParams(location.search);
-    const order = params.get("order");
-    const returning = params.has("payment") && !!order;
+    // Ezpay has no return address to this site, so a toman checkout remembers its order and is checked when the buyer comes back.
+    const pendingToman = localStorage.getItem("darvazeh.pendingTomanOrder");
+    const order = params.get("order") || pendingToman;
+    const returning = (params.has("payment") && !!params.get("order")) || !!pendingToman;
     async function check(attempt = 0) {
       try {
         if (returning && order) {
           const result = await api.reconcilePayment(order);
           if (stopped) return;
+          if (result.status !== "checkout_open") localStorage.removeItem("darvazeh.pendingTomanOrder");
           if (result.status.startsWith("paid_")) {
             setNotice(
               result.status === "paid_active"
@@ -180,6 +187,13 @@ export function BillingPanel({
               ),
             );
             history.replaceState({}, "", location.pathname);
+          } else if (pendingToman && !params.has("payment")) {
+            setNotice(
+              tr(
+                "پرداخت تومانی هنوز تأیید نشده است. پس از پرداخت، تأیید چند دقیقه طول می‌کشد.",
+                "The toman payment isn’t confirmed yet. After paying, confirmation can take a few minutes.",
+              ),
+            );
           } else if (attempt < 12) {
             setNotice(
               tr(
@@ -201,13 +215,21 @@ export function BillingPanel({
       if (timer) clearTimeout(timer);
     };
   }, []);
-  async function buy(plan: Plan) {
-    if (!request.current || request.current.planId !== plan.id)
-      request.current = { planId: plan.id, key: crypto.randomUUID() };
+  async function buy(plan: Plan, currency: "USD" | "IRT") {
+    if (
+      !request.current ||
+      request.current.planId !== plan.id ||
+      request.current.currency !== currency
+    )
+      request.current = { planId: plan.id, currency, key: crypto.randomUUID() };
     setBusy(true);
     setError("");
     try {
-      const checkout = await api.checkout(plan.id, "USD", request.current.key);
+      const checkout = await api.checkout(
+        plan.id,
+        currency,
+        request.current.key,
+      );
       if (checkout.status.startsWith("paid_")) {
         await load();
         await changed.current();
@@ -228,8 +250,13 @@ export function BillingPanel({
         );
       } else if (checkout.checkoutUrl) {
         const url = new URL(checkout.checkoutUrl);
-        if (url.protocol !== "https:" || url.hostname !== "checkout.stripe.com")
-          throw new Error();
+        const allowed =
+          currency === "USD"
+            ? url.hostname === "checkout.stripe.com"
+            : url.hostname === "ezpay.ir" || url.hostname.endsWith(".ezpay.ir");
+        if (url.protocol !== "https:" || !allowed) throw new Error();
+        if (currency === "IRT")
+          localStorage.setItem("darvazeh.pendingTomanOrder", checkout.id);
         location.assign(url.href);
       }
     } catch (e) {
@@ -317,7 +344,7 @@ export function BillingPanel({
                   !catalog.stripeAvailable ||
                   !plan.priceUsdCents
                 }
-                onClick={() => buy(plan)}
+                onClick={() => buy(plan, "USD")}
               >
                 {busy
                   ? tr("کمی صبر کنید…", "One moment…")
@@ -331,9 +358,30 @@ export function BillingPanel({
                     : tr("قیمت مشخص نشده", "Price not set")}
                 </strong>
               </div>
-              <button className="btn secondary full" disabled>
-                {tr("پرداخت تومانی — به‌زودی", "Toman checkout — coming later")}
+              <button
+                className="btn secondary full"
+                disabled={
+                  busy ||
+                  !plan.isPurchasable ||
+                  !catalog.tomanAvailable ||
+                  !plan.priceToman
+                }
+                onClick={() => buy(plan, "IRT")}
+              >
+                {busy
+                  ? tr("کمی صبر کنید…", "One moment…")
+                  : catalog.tomanAvailable
+                    ? tr("پرداخت تومانی (کیف پول ایزی‌پی)", "Pay in toman (Ezpay wallet)")
+                    : tr("پرداخت تومانی — به‌زودی", "Toman checkout — coming later")}
               </button>
+              {catalog.tomanAvailable && plan.priceToman ? (
+                <p className="hint">
+                  {tr(
+                    "پیش از پرداخت فیلترشکن را خاموش کنید. پس از پرداخت به همین صفحه برگردید؛ تأیید خودکار انجام می‌شود.",
+                    "Turn off any VPN before paying. Come back to this page afterwards; confirmation is automatic.",
+                  )}
+                </p>
+              ) : null}
               {!plan.isPurchasable ? (
                 <p className="hint">
                   {tr(

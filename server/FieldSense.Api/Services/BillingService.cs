@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace FieldSense.Api.Services;
 
 public class BillingService(AppDbContext db, MembershipService membership, IStripeGateway stripe,
-    IOptions<BillingSettings> options, IWebHostEnvironment environment)
+    EzpayBroker ezpay, PaymentWalletService wallet, IOptions<BillingSettings> options, IWebHostEnvironment environment)
 {
     private readonly BillingSettings settings = options.Value;
     private static string Text(JsonElement o, string key) => o.ValueKind == JsonValueKind.Object &&
@@ -26,6 +26,14 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
     {
         if (!settings.Configured) throw new BillingException("payment_not_configured", "پرداخت دلاری هنوز فعال نشده است.", 503);
     }
+    private bool EzpayConfigured => settings.EzpayConfiguredFor(environment.IsDevelopment());
+    private void EzpayReady()
+    {
+        if (!EzpayConfigured) throw new BillingException("payment_method_unavailable", "پرداخت تومانی پس از اتصال کیف پول فعال می‌شود.", 503);
+    }
+    // Ezpay's card-payment floor is 10,000 rial; the relay caps one link at 4,000,000,000 rial.
+    public const long MinToman = 1_000, MaxToman = 400_000_000;
+    public static string FactorFor(PaymentOrder order) => "darvazeh-" + order.Id.ToString("N");
 
     public async Task<object> Catalog(Guid userId)
     {
@@ -33,7 +41,7 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
         return new {
             plans = await db.Plans.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.DurationDays).ToListAsync(),
             stripeAvailable = settings.Configured, stripeTestMode = !settings.IsLive,
-            tomanAvailable = false, tomanProvider = "ezpay", legalName = settings.LegalName,
+            tomanAvailable = EzpayConfigured && await wallet.Offered(), tomanProvider = "ezpay", legalName = settings.LegalName,
             tradingName = settings.TradingName,
             queuedPeriods = await db.PaymentOrders.CountAsync(p => p.UserId == userId && p.Status == "paid_queued")
         };
@@ -41,8 +49,14 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
 
     public async Task<PaymentOrder> Checkout(Guid userId, Guid planId, string currency, string requestKey)
     {
-        if (currency != "USD") throw new BillingException("payment_method_unavailable", "پرداخت تومانی پس از اتصال کیف پول فعال می‌شود.", 503);
-        Ready();
+        if (currency == "IRT")
+        {
+            EzpayReady();
+            // No order is recorded while no receiving wallet is offered; Ezpay itself is checked again when the link is created.
+            if (!await wallet.Offered()) throw new BillingException("payment_method_unavailable", "پرداخت تومانی پس از اتصال کیف پول فعال می‌شود.", 503);
+        }
+        else if (currency == "USD") Ready();
+        else throw new BillingException("payment_method_unavailable", "این روش پرداخت پشتیبانی نمی‌شود.", 400);
         if (!Guid.TryParse(requestKey, out _)) throw new BillingException("invalid_request", "درخواست پرداخت معتبر نیست.");
         PaymentOrder order;
         await using (var transaction = await db.Database.BeginTransactionAsync())
@@ -60,8 +74,11 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
                     (p.Status == "created" || p.Status == "checkout_open")) >= 10)
                     throw new BillingException("checkout_rate_limit", "درخواست‌های پرداخت زیادی باز است. کمی بعد تلاش کنید.", 429);
                 var plan = await db.Plans.SingleOrDefaultAsync(p => p.Id == planId && p.IsActive && p.IsPurchasable && p.Code != "trial");
-                if (plan?.PriceUsdCents is not (>= 50 and <= 99999999))
+                if (plan == null) throw new BillingException("plan_not_for_sale", "این طرح برای فروش نیست.");
+                if (currency == "USD" && plan.PriceUsdCents is not (>= 50 and <= 99999999))
                     throw new BillingException("plan_not_for_sale", "قیمت دلاری این طرح هنوز مشخص نشده است.");
+                if (currency == "IRT" && plan.PriceToman is not (>= MinToman and <= MaxToman))
+                    throw new BillingException("plan_not_for_sale", "قیمت تومانی این طرح هنوز مشخص نشده است.");
                 var origin = settings.PortalOrigin.TrimEnd('/');
                 if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) || uri.UserInfo != "" ||
                     uri.AbsolutePath != "/" || uri.Query != "" || uri.Fragment != "" ||
@@ -70,7 +87,8 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
                 order = new PaymentOrder { UserId = userId, PlanId = plan.Id, PlanName = plan.Name,
                     DurationDays = plan.DurationDays, MessageLimit = plan.MessageLimit, EmailForwardLimit = plan.EmailForwardLimit,
                     SendEnabled = plan.SendEnabled, ReceiveEnabled = plan.ReceiveEnabled,
-                    AmountMinor = plan.PriceUsdCents.Value, RequestKey = requestKey, ReturnOrigin = origin };
+                    Provider = currency == "IRT" ? "ezpay" : "stripe", Currency = currency,
+                    AmountMinor = currency == "IRT" ? plan.PriceToman!.Value : plan.PriceUsdCents!.Value, RequestKey = requestKey, ReturnOrigin = origin };
                 db.PaymentOrders.Add(order);
                 await db.SaveChangesAsync();
             }
@@ -80,6 +98,7 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
         if (order.ProviderSessionId != null) return order;
         if (order.CreatedAt < DateTime.UtcNow.AddMinutes(-50))
             throw new BillingException("checkout_expired", "زمان این درخواست گذشته است. پرداخت تازه‌ای آغاز کنید.");
+        if (order.Provider == "ezpay") return await CreateEzpayLink(order);
         var user = await db.Users.AsNoTracking().SingleAsync(u => u.Id == userId);
         var session = await stripe.CreateCheckout(order, user.Email);
         var id = Text(session, "id"); var url = Text(session, "url");
@@ -100,13 +119,84 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
     {
         var order = await db.PaymentOrders.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id && p.UserId == userId);
         if (order == null) return null;
-        if ((order.Status is "created" or "checkout_open" or "failed" or "expired") && order.ProviderSessionId != null)
+        if (order.Provider == "ezpay" && (order.Status is "checkout_open" or "failed" or "expired") && order.ProviderUniqueId != null)
+        {
+            EzpayReady();
+            await ApplyEzpay(order.Id);
+        }
+        else if (order.Provider == "stripe" && (order.Status is "created" or "checkout_open" or "failed" or "expired") && order.ProviderSessionId != null)
         {
             Ready();
             await ApplySession(await stripe.Checkout(order.ProviderSessionId));
         }
         await membership.Current(userId);
         return await db.PaymentOrders.AsNoTracking().SingleAsync(p => p.Id == id);
+    }
+
+    /// <summary>Creates the Ezpay link into the default wallet (as Ravand does for plan payments). Stored before the provider call, so a retry is safe.</summary>
+    private async Task<PaymentOrder> CreateEzpayLink(PaymentOrder order)
+    {
+        var phone = await wallet.PurchaseReceiver();
+        var factor = FactorFor(order);
+        var amount = PaymentMoney.TomanToRial(order.AmountMinor);
+        var body = await ezpay.Call(HttpMethod.Post, "payments", new { phoneNumber = phone, factorNumber = factor, amount,
+            subject = "اشتراک دروازه", description = $"Darvazeh {order.PlanName} · {order.DurationDays} days" });
+        var uniqueId = EzpayBroker.Text(body, "uniqueId");
+        var link = EzpayBroker.Text(body, "paymentLink");
+        Check(EzpayBroker.IsProviderLink(link) && uniqueId is { Length: > 0 and <= 100 });
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        await db.Entry(order).ReloadAsync();
+        Check(order.ProviderSessionId == null || order.ProviderSessionId == factor);
+        order.ProviderSessionId = factor; order.ProviderUniqueId = uniqueId; order.ReceivingPhone = phone; order.CheckoutUrl = link;
+        if (order.Status == "created") order.Status = "checkout_open";
+        await db.SaveChangesAsync(); await transaction.CommitAsync();
+        return order;
+    }
+
+    /// <summary>Asks the relay about an Ezpay order and applies the answer. Ezpay links stay payable, so a late payment still activates it.</summary>
+    private async Task ApplyEzpay(Guid orderId)
+    {
+        var snapshot = await db.PaymentOrders.AsNoTracking().SingleAsync(p => p.Id == orderId && p.Provider == "ezpay");
+        var amount = PaymentMoney.TomanToRial(snapshot.AmountMinor);
+        var path = $"payments/{Uri.EscapeDataString(snapshot.ProviderUniqueId!)}?phoneNumber={Uri.EscapeDataString(snapshot.ReceivingPhone ?? "")}" +
+            $"&factorNumber={Uri.EscapeDataString(snapshot.ProviderSessionId!)}&amount={amount}";
+        var body = await ezpay.Call(HttpMethod.Get, path);
+        EzpayBroker.ValidatePayment(body, snapshot.ProviderUniqueId!, amount);
+        var providerStatus = EzpayBroker.Text(body, "status")?.ToUpperInvariant();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var order = await db.PaymentOrders.SingleAsync(p => p.Id == orderId);
+        if (providerStatus == "SUCCESS" && order.PaidAt == null && order.Status != "refunded")
+        {
+            var reference = EzpayBroker.Text(body, "transactionid")!;
+            Check(reference.Length <= 120);
+            order.ProviderPaymentId = "ezpay:" + reference;
+            order.PaidAt = DateTime.UtcNow; order.Status = "paid_queued";
+            membership.Log(order.UserId, "payment_confirmed", order.PlanName);
+            await db.SaveChangesAsync(); await transaction.CommitAsync();
+            await membership.Current(order.UserId);
+            return;
+        }
+        if (providerStatus is "FAILED" or "DENIED" or "REVERSED" or "REFUNDED" && order.PaidAt == null) order.Status = "failed";
+        await db.SaveChangesAsync(); await transaction.CommitAsync();
+    }
+
+    /// <summary>Checks open Ezpay orders from the last three days, so a paid order is activated even if the buyer never returns.</summary>
+    public async Task<int> ReconcileEzpayOrders(CancellationToken ct)
+    {
+        if (!EzpayConfigured) return 0;
+        var since = DateTime.UtcNow.AddDays(-3);
+        var open = await db.PaymentOrders.AsNoTracking()
+            .Where(p => p.Provider == "ezpay" && p.Status == "checkout_open" && p.ProviderUniqueId != null && p.CreatedAt > since)
+            .OrderBy(p => p.CreatedAt).Select(p => new { p.Id, p.UserId }).Take(100).ToListAsync(ct);
+        var paid = 0;
+        foreach (var item in open)
+        {
+            ct.ThrowIfCancellationRequested();
+            try { if ((await Reconcile(item.UserId, item.Id))?.PaidAt != null) paid++; }
+            catch (BillingException) { /* Relay or Ezpay unavailable: try again next round. */ }
+            db.ChangeTracker.Clear();
+        }
+        return paid;
     }
 
     public async Task Webhook(string raw, string signature)
@@ -190,5 +280,25 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
         }
         db.PaymentEvents.Add(new PaymentEventReceipt { Id = eventId, Type = type });
         await db.SaveChangesAsync(); await transaction.CommitAsync();
+    }
+}
+
+/// <summary>Polls the relay for open toman orders every minute (Ezpay does not call back to Darvazeh).</summary>
+public class EzpayPaymentReconciler(IServiceScopeFactory scopes, ILogger<EzpayPaymentReconciler> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            try
+            {
+                using var scope = scopes.CreateScope();
+                var paid = await scope.ServiceProvider.GetRequiredService<BillingService>().ReconcileEzpayOrders(stoppingToken);
+                if (paid > 0) logger.LogInformation("Confirmed {Count} toman payments through Ezpay", paid);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
+            catch (Exception error) { logger.LogWarning(error, "Toman payment reconciliation failed"); }
+        }
     }
 }

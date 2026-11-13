@@ -36,6 +36,9 @@ builder.Services.AddScoped<DeviceHealthService>();
 builder.Services.AddHostedService<DeviceHealthMonitor>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddHttpClient<IStripeGateway, StripeGateway>(client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient<EzpayBroker>(client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddScoped<PaymentWalletService>();
+builder.Services.AddHostedService<EzpayPaymentReconciler>();
 builder.Services.AddScoped<JwtTokenService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

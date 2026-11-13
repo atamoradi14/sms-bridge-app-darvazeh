@@ -15,6 +15,9 @@ data:
   FieldSense__CorsOrigin: "https://sms.example.com,http://127.0.0.1:30431,http://localhost:30431,http://127.0.0.1:43180"
   ConnectionStrings__Default: "Data Source=/data/fieldsense.db"
   ASPNETCORE_URLS: "http://0.0.0.0:8080"
+  # Toman checkout via the Iran-hosted Ezpay relay (enable once the relay key is in the secret).
+  Billing__EzpayEnabled: "false"
+  Billing__PaymentRelayEndpoint: ""
 ---
 # Mounted into the web pod as /usr/share/nginx/html/config.js
 # For NodePort without Ingress, set the API base to the API NodePort URL, e.g.:
