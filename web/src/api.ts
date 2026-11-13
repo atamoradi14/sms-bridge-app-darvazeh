@@ -143,13 +143,25 @@ export class RequestError extends Error {
   status = 0;
   code?: string;
   needAdminPassword?: boolean;
+  retryAfterMs?: number;
 }
+const pendingReads = new Map<string, Promise<unknown>>();
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  if (init?.method && init.method !== "GET") return performRequest<T>(path, init);
+  const key = (localStorage.getItem(TOKEN_KEY) || "anonymous") + ":" + path;
+  const existing = pendingReads.get(key);
+  if (existing) return existing as Promise<T>;
+  const request = performRequest<T>(path, init).finally(() => pendingReads.delete(key));
+  pendingReads.set(key, request);
+  return request;
+}
+async function performRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const token = localStorage.getItem(TOKEN_KEY);
   let response: Response;
   try {
     response = await fetch(base() + path, {
       ...init,
+      signal: init?.signal ?? AbortSignal.timeout(20_000),
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -167,6 +179,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
       data.error || "Request could not be completed",
     );
     error.status = response.status;
+    const retryAfter = response.headers.get("Retry-After");
+    if (retryAfter) {
+      const seconds = Number(retryAfter);
+      error.retryAfterMs = Number.isFinite(seconds) ? Math.max(0, seconds * 1000) : Math.max(0, Date.parse(retryAfter) - Date.now()) || 0;
+    }
     error.code = data.code;
     error.needAdminPassword = data.needAdminPassword;
     throw error;
@@ -175,7 +192,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 }
 const send = <T>(path: string, method: string, body: unknown) =>
   req<T>(path, { method, body: JSON.stringify(body) });
-export type EmailStatus={id:string;kind:string;status:string;errorCode?:string;attempts:number;createdAt:string;acceptedAt?:string;completedAt?:string};
+export type EmailStatus={id:string;kind:string;status:string;errorCode?:string;attempts:number;pollAttempts:number;consecutiveFailures:number;nextAttemptAt?:string;createdAt:string;acceptedAt?:string;completedAt?:string};
 export type LinkRequest = {id:string;deviceName:string;comparisonCode:string;createdAt:string;expiresAt:string};
 export type PhoneAlert = {id:string;deviceId:string;deviceName:string;kind:string;createdAt:string;resolvedAt?:string;readAt?:string};
 export const api = {

@@ -64,6 +64,14 @@ public static class SchemaUpgrade
             CREATE INDEX IF NOT EXISTS IX_EmailDispatches_Kind_NextAttemptAt ON EmailDispatches(Kind,NextAttemptAt);
             CREATE UNIQUE INDEX IF NOT EXISTS IX_EmailDispatches_MessageId ON EmailDispatches(MessageId);
             """);
+        await AddColumn("EmailDispatches", "PollAttempts", "INTEGER NOT NULL DEFAULT 0");
+        await AddColumn("EmailDispatches", "ConsecutiveFailures", "INTEGER NOT NULL DEFAULT 0");
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS EmailProviderCalls (Id TEXT NOT NULL PRIMARY KEY, Operation TEXT NOT NULL, CreatedAt TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS IX_EmailProviderCalls_Operation_CreatedAt ON EmailProviderCalls(Operation,CreatedAt);
+            CREATE TABLE IF NOT EXISTS EmailProviderControls (Id INTEGER NOT NULL PRIMARY KEY, CooldownUntil TEXT NOT NULL);
+            INSERT OR IGNORE INTO EmailProviderControls(Id,CooldownUntil) VALUES(1,'0001-01-01 00:00:00');
+            """);
         await AddColumn("Devices", "InstallationId", "TEXT NULL");
         await AddColumn("Devices", "LastIpAddress", "TEXT NULL");
         await AddColumn("Devices", "Platform", "TEXT NULL");

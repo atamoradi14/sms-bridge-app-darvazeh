@@ -1,3 +1,4 @@
+import {startPolling} from "./polling";
 import { utcDate } from "./format";
 import { useEffect, useRef, useState } from "react";
 import { api, type User, type LinkRequest, type PhoneAlert } from "./api";
@@ -61,7 +62,7 @@ export function Phones({
         setLinks(l);
         setAlerts(a);
         setError("");
-      } catch {
+      } catch (e) {
         if (!stopped)
           setError(
             tr(
@@ -69,13 +70,13 @@ export function Phones({
               "Could not refresh phone status. Retrying.",
             ),
           );
+        throw e;
       }
     }
-    refresh();
-    const timer = setInterval(refresh, 8000);
+    const stop = startPolling(refresh, 15000);
     return () => {
       stopped = true;
-      clearInterval(timer);
+      stop();
     };
   }, [user.id]);
   useEffect(() => {

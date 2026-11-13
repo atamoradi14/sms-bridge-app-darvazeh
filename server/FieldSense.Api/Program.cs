@@ -12,6 +12,8 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command",LogLevel.Warning);
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics",LogLevel.Warning);
+// HttpClient default logs include query strings containing personal/payment identifiers.
+builder.Logging.AddFilter("System.Net.Http.HttpClient",LogLevel.Warning);
 
 builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("FieldSense"));
 builder.Services.Configure<GoogleSettings>(builder.Configuration.GetSection("Google"));
@@ -24,9 +26,18 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
 
 builder.Services.AddRateLimiter(o=> {
     o.RejectionStatusCode=429;
+    o.OnRejected=(context,ct)=> {
+        var seconds=context.Lease.TryGetMetadata(MetadataName.RetryAfter,out var retry)?Math.Ceiling(retry.TotalSeconds):60;
+        context.HttpContext.Response.Headers.RetryAfter=seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("ApiRateLimit")
+            .LogWarning("API rate limit rejected {Endpoint}; retryAfterSeconds={Seconds}",context.HttpContext.GetEndpoint()?.DisplayName,seconds);
+        return ValueTask.CompletedTask;
+    };
     o.AddPolicy("password-auth",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=60,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
     o.AddPolicy("signup",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=10,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
 });
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddScoped<EmailRequestBudget>();
 builder.Services.AddScoped<EmailOutbox>();
 builder.Services.AddSingleton<IMailTransport,MailTransport>();
 builder.Services.AddHostedService<EmailQueueWorker>();
@@ -105,6 +116,7 @@ builder.Services.AddCors(opt =>
                 settings.CorsOrigin.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .AllowAnyHeader()
             .AllowAnyMethod()
+            .WithExposedHeaders("Retry-After")
             .AllowCredentials());
 });
 

@@ -1,3 +1,4 @@
+import {startPolling} from "./polling";
 import {utcDate} from "./format";
 import {useEffect,useId,useState} from "react";
 import {api,RequestError,type Message} from "./api";
@@ -6,7 +7,7 @@ type Page={items:Message[];total:number;page:number;pageSize:number;totalPages:n
 export function MessageHistory({lang,userId}:{lang:Lang;userId?:string}) {
  const tr=(fa:string,en:string)=>lang==="fa"?fa:en,id=useId();
  const [query,setQuery]=useState(""),[direction,setDirection]=useState(""),[page,setPage]=useState(1),[size,setSize]=useState(20),[result,setResult]=useState<Page>({items:[],total:0,page:1,pageSize:20,totalPages:1}),[selected,setSelected]=useState<string[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(""),[version,setVersion]=useState(0),[loading,setLoading]=useState(true);
- useEffect(()=>{let active=true,serial=0;setLoading(true);setSelected([]);const load=async()=>{const request=++serial;try{const r=await api.messagePage(query,direction,page,size,userId);if(active&&request===serial){setResult(r);setPage(r.page);setError("");}}catch{if(active&&request===serial)setError(tr("پیام‌ها بارگیری نشدند.","Could not load messages."));}finally{if(active&&request===serial)setLoading(false);}};const delay=setTimeout(load,300),timer=setInterval(load,8000);return()=>{active=false;clearTimeout(delay);clearInterval(timer);};},[query,direction,page,size,userId,version]);
+ useEffect(()=>{let active=true,serial=0;setLoading(true);setSelected([]);const load=async()=>{const request=++serial;try{const r=await api.messagePage(query,direction,page,size,userId);if(active&&request===serial){setResult(r);setPage(r.page);setError("");}}catch(e){if(active&&request===serial)setError(tr("پیام‌ها بارگیری نشدند.","Could not load messages."));throw e;}finally{if(active&&request===serial)setLoading(false);}};const stop=startPolling(load,15000,300);return()=>{active=false;stop();};},[query,direction,page,size,userId,version]);
  async function remove(ids:string[]) {
   if(!confirm(tr(`متن ${ids.length} پیام حذف شود؟ مصرف اشتراک تغییر نمی‌کند. نسخه‌های قبلاً ارسال‌شده قابل پس‌گرفتن نیستند.`,`Delete ${ids.length} messages? Plan usage stays unchanged. Previously sent copies cannot be recalled.`)))return;
   setBusy(true);setError("");try{await api.deleteMessages(ids,userId);setSelected([]);setVersion(v=>v+1);}catch(e){setError((e as RequestError).code==="message_in_progress"?tr("پیام در حال ارسال است؛ پس از تعیین وضعیت حذف کنید.","A message is still being sent. Delete it after its status is final."):tr("حذف پیام انجام نشد.","Could not delete messages."));}finally{setBusy(false);}

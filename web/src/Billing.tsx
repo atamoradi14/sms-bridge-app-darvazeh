@@ -1,3 +1,4 @@
+import {startPolling} from "./polling";
 import {utcDate} from "./format";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
@@ -133,6 +134,7 @@ export function BillingPanel({
   // A toman checkout opens Ezpay in its own window; this page waits for it and checks the order.
   const [tomanWaiting, setTomanWaiting] = useState<{ order: string; url: string | null; opened: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
+  const reconciliationBusy = useRef(false);
   const waitingPanel = useRef<HTMLDivElement>(null);
   const request = useRef<{
     planId: string;
@@ -150,6 +152,8 @@ export function BillingPanel({
     setOrders(o);
   }
   async function checkToman(order: string, manual = false) {
+    if (reconciliationBusy.current) return;
+    reconciliationBusy.current = true;
     if (manual) setChecking(true);
     try {
       const result = await api.reconcilePayment(order);
@@ -177,20 +181,16 @@ export function BillingPanel({
       await load();
     } catch (e) {
       if (manual) setError(billingError(e, lang));
+      else throw e;
     } finally {
+      reconciliationBusy.current = false;
       if (manual) setChecking(false);
     }
   }
   useEffect(() => {
     if (!tomanWaiting) return;
     const order = tomanWaiting.order;
-    const timer = setInterval(() => void checkToman(order), 10000);
-    const onFocus = () => void checkToman(order);
-    window.addEventListener("focus", onFocus);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener("focus", onFocus);
-    };
+    return startPolling(() => checkToman(order), 30000, 10000);
   }, [tomanWaiting?.order]);
   useEffect(() => {
     if (tomanWaiting?.url) waitingPanel.current?.scrollIntoView({ behavior: "smooth", block: "center" });

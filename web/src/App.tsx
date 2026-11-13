@@ -1,3 +1,4 @@
+import {startPolling} from "./polling";
 import { utcDate } from "./format";
 import { WorkspaceShell } from "./WorkspaceShell";
 import { screenInfo, readScreen, type Screen } from "./workspaceNavigation";
@@ -138,16 +139,14 @@ export default function App() {
   useEffect(() => {
     if (user?.role !== "Admin" || !tab.startsWith("admin")) return;
     const load = () =>
-      adminRefresh().catch(() =>
+      adminRefresh().catch((e) => {
         setError(
           lang === "fa"
             ? "گزارش مدیریت به‌روز نشد؛ دوباره تلاش کنید."
             : "Could not refresh administration data. Please try again.",
-        ),
-      );
-    void load();
-    const timer = setInterval(load, 30000);
-    return () => clearInterval(timer);
+        ); throw e;
+      });
+    return startPolling(load, 30000);
   }, [tab, user?.role, lang, adminRefresh]);
   const refresh = useCallback(async (admin = false) => {
     const me = await api.me();
@@ -247,10 +246,10 @@ export default function App() {
           setToken(null);
         } else fail(e);
       });
-    const timer = setInterval(() => refresh().catch(() => {}), 8000);
+    const stop = startPolling(() => refresh(), 15000, 15000);
     return () => {
       active = false;
-      clearInterval(timer);
+      stop();
     };
   }, [token, googleReturn, refresh]);
   useEffect(() => {

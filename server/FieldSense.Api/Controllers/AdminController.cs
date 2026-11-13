@@ -115,7 +115,7 @@ public class AdminController(AppDbContext db, MembershipService membership) : Co
 
     [HttpGet("email-status")]
     public async Task<IActionResult> EmailStatus()=>Ok(await db.EmailDispatches.AsNoTracking().OrderByDescending(e=>e.CreatedAt).Take(100)
-        .Select(e=>new {e.Id,e.Kind,e.Status,e.ErrorCode,e.Attempts,e.CreatedAt,e.AcceptedAt,e.CompletedAt,e.NextAttemptAt}).ToListAsync());
+        .Select(e=>new {e.Id,e.Kind,e.Status,e.ErrorCode,e.Attempts,e.PollAttempts,e.ConsecutiveFailures,e.CreatedAt,e.AcceptedAt,e.CompletedAt,e.NextAttemptAt}).ToListAsync());
 
     [HttpGet("payments")]
     public async Task<IActionResult> Payments() => Ok(await db.PaymentOrders.AsNoTracking()

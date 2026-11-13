@@ -232,6 +232,15 @@ public class DeviceAlert
     public DateTime? ReadAt { get; set; }
 }
 
+public class EmailProviderCall {
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Operation { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+}
+public class EmailProviderControl {
+    public int Id { get; set; }
+    public DateTime CooldownUntil { get; set; }
+}
 public class EmailDispatch
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -244,6 +253,8 @@ public class EmailDispatch
     public string Status { get; set; } = "queued";
     public string? ErrorCode { get; set; }
     public int Attempts { get; set; }
+    public int PollAttempts { get; set; }
+    public int ConsecutiveFailures { get; set; }
     public bool ProviderStarted { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime NextAttemptAt { get; set; } = DateTime.UtcNow;

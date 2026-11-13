@@ -19,6 +19,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<PaymentEventReceipt> PaymentEvents => Set<PaymentEventReceipt>();
 
     public DbSet<GoogleLoginFlow> GoogleLoginFlows => Set<GoogleLoginFlow>();
+    public DbSet<EmailProviderCall> EmailProviderCalls => Set<EmailProviderCall>();
+    public DbSet<EmailProviderControl> EmailProviderControls => Set<EmailProviderControl>();
     public DbSet<EmailDispatch> EmailDispatches => Set<EmailDispatch>();
     public DbSet<DeviceLinkRequest> DeviceLinks => Set<DeviceLinkRequest>();
     public DbSet<DeviceAlert> DeviceAlerts => Set<DeviceAlert>();
@@ -35,6 +37,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<DeviceAlert>().HasIndex(a => new { a.DeviceId, a.Kind }).IsUnique().HasFilter("ResolvedAt IS NULL");
         modelBuilder.Entity<AppUser>().HasIndex(u => u.GoogleSubject).IsUnique();
         modelBuilder.Entity<AppUser>().HasIndex(u => u.Username).IsUnique().HasFilter("DeletedAt IS NULL");
+        modelBuilder.Entity<EmailProviderControl>().Property(e=>e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<EmailProviderCall>().HasIndex(e=>new {e.Operation,e.CreatedAt});
         modelBuilder.Entity<EmailDispatch>().HasIndex(e=>new {e.Kind,e.NextAttemptAt});
         modelBuilder.Entity<EmailDispatch>().HasIndex(e=>e.MessageId).IsUnique();
         modelBuilder.Entity<AppUser>().HasIndex(u => u.Email).IsUnique().HasFilter("DeletedAt IS NULL");
