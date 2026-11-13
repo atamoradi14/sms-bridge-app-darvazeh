@@ -1,12 +1,20 @@
-import {MessageHistory} from "./MessageHistory";
-import {AdminSecurity,AdminCreateUser,AdminAccountControls} from "./AdminAccounts";
-import {VerifyEmailBanner,ProfileSecurity} from "./AccountSecurity";
-import {GoogleLogin} from "./GoogleLogin";
-import {PasswordAccess,EmailDiagnostics} from "./PasswordAccess";
-import {Phones} from "./Phones";
+import { utcDate } from "./format";
+import { WorkspaceShell } from "./WorkspaceShell";
+import { screenInfo, readScreen, type Screen } from "./workspaceNavigation";
+import { Overview, AdminOverview } from "./Overview";
+import { MessageHistory } from "./MessageHistory";
+import {
+  AdminSecurity,
+  AdminCreateUser,
+  AdminAccountControls,
+} from "./AdminAccounts";
+import { VerifyEmailBanner, ProfileSecurity } from "./AccountSecurity";
+import { GoogleLogin } from "./GoogleLogin";
+import { PasswordAccess, EmailDiagnostics } from "./PasswordAccess";
+import { Phones } from "./Phones";
 import { BillingPanel, PlanManager, AdminPayments } from "./Billing";
 import { PaymentWalletAdmin } from "./PaymentWallet";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   api,
   RequestError,
@@ -17,7 +25,6 @@ import {
   type Stats,
 } from "./api";
 import { loadLang, saveLang, type Lang } from "./i18n";
-type Tab = "inbox" | "send" | "device" | "settings" | "membership" | "admin";
 const digits = (s: string) =>
   s.replace(/[۰-۹٠-٩]/g, (c) =>
     String(c.charCodeAt(0) - (c >= "۰" ? 1776 : 1632)),
@@ -25,17 +32,21 @@ const digits = (s: string) =>
 export default function App() {
   const [lang, setLang] = useState<Lang>(loadLang);
   const [token, setToken] = useState(api.getToken);
-  const [googleReturn,setGoogleReturn]=useState(()=>new URLSearchParams(location.hash.slice(1)).has("google_code"));
-  const [user, setUser] = useState<User | null>(null);
-  const [tab, setTab] = useState<Tab>(() =>
-    new URLSearchParams(location.search).has("payment")
-      ? "membership"
-      : "inbox",
+  const [googleReturn, setGoogleReturn] = useState(() =>
+    new URLSearchParams(location.hash.slice(1)).has("google_code"),
   );
+  const [user, setUser] = useState<User | null>(null);
+  const [requestedScreen, setScreen] = useState<Screen>(readScreen);
+  const tab =
+    user && user.role !== "Admin" && requestedScreen.startsWith("admin")
+      ? "overview"
+      : requestedScreen;
+  const [peopleStatus, setPeopleStatus] = useState("all");
+  const [peoplePage, setPeoplePage] = useState(1);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
-  const [usePassword,setUsePassword] = useState(true);
+  const [usePassword, setUsePassword] = useState(true);
   const [otpSent, setOtpSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -50,14 +61,45 @@ export default function App() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [search, setSearch] = useState("");
+  function navigate(next: Screen) {
+    if (next === requestedScreen) return;
+    setScreen(next);
+    setError("");
+    setNotice("");
+    window.scrollTo(0, 0);
+    const url = new URL(location.href);
+    url.searchParams.set("view", next);
+    history.pushState({}, "", url.pathname + url.search + url.hash);
+  }
+  useEffect(() => {
+    const back = () => {
+      setScreen(readScreen());
+      setError("");
+      setNotice("");
+    };
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  }, []);
+
+  useEffect(() => {
+    if (user?.role && user.role !== "Admin" && requestedScreen.startsWith("admin")) {
+      const url = new URL(location.href);
+      url.searchParams.set("view", "overview");
+      history.replaceState({}, "", url.pathname + url.search);
+    }
+  }, [user?.role, requestedScreen]);
   const tr = (fa: string, en: string) => (lang === "fa" ? fa : en);
   const date = (value: string) =>
-    new Date(value).toLocaleString(lang === "fa" ? "fa-IR" : "en-NZ", {
+    utcDate(value).toLocaleString(lang === "fa" ? "fa-IR" : "en-NZ", {
       dateStyle: "medium",
       timeStyle: "short",
     });
   const planName = (s: User["subscription"]) =>
-    !user?.emailVerified && user ? tr("در انتظار تأیید", "Awaiting verification") : s.planCode === "trial" ? tr("آزمایشی", "Trial") : s.planName;
+    !user?.emailVerified && user
+      ? tr("در انتظار تأیید", "Awaiting verification")
+      : s.planCode === "trial"
+        ? tr("آزمایشی", "Trial")
+        : s.planName;
   const fail = (e: unknown) => {
     const r = e as RequestError;
     setError(
@@ -81,7 +123,7 @@ export default function App() {
             ),
     );
   };
-  async function adminRefresh() {
+  const adminRefresh = useCallback(async () => {
     const [u, p, a, s] = await Promise.all([
       api.adminUsers(),
       api.plans(),
@@ -92,38 +134,103 @@ export default function App() {
     setPlans(p);
     setActivities(a);
     setStats(s);
-  }
-  async function refresh(admin = false) {
+  }, []);
+  useEffect(() => {
+    if (user?.role !== "Admin" || !tab.startsWith("admin")) return;
+    const load = () =>
+      adminRefresh().catch(() =>
+        setError(
+          lang === "fa"
+            ? "گزارش مدیریت به‌روز نشد؛ دوباره تلاش کنید."
+            : "Could not refresh administration data. Please try again.",
+        ),
+      );
+    void load();
+    const timer = setInterval(load, 30000);
+    return () => clearInterval(timer);
+  }, [tab, user?.role, lang, adminRefresh]);
+  const refresh = useCallback(async (admin = false) => {
     const me = await api.me();
     setUser(me);
 
     if (admin && me.role === "Admin") await adminRefresh();
     return me;
-  }
-  useEffect(()=>{
-    const params=new URLSearchParams(location.hash.slice(1));
-    const code=params.get("google_code"),flow=params.get("google_flow"),problem=params.get("google_error");
-    if(!code&&!problem)return;
-    history.replaceState({},"",location.pathname+location.search);
-    const googleFailure=(reason:string)=>setError(({
-      admin_password_required: tr("برای ورود مدیر از ورود با رمز استفاده کنید.","Administrators must use password sign-in."),
-      admin_otp_required: tr("برای ورود مدیر از ورود با رمز استفاده کنید.","Administrators must use password sign-in."),
-      account_deleted: tr("حساب قبلی حذف شده است. برای ساخت حساب تازه، دوباره با گوگل ادامه دهید.","The previous account was deleted. Continue with Google again to create a fresh account."),
-      account_suspended: tr("این حساب توسط مدیر تعلیق شده است. برای رفع تعلیق با مدیر تماس بگیرید.","This account is suspended. Contact the administrator to resume access."),
-      verify_email: tr("برای این نشانی، از کد تأیید ایمیل استفاده کنید.","Use an email verification code for this address."),
-      account_conflict: tr("این ایمیل به حساب گوگل دیگری متصل است. برای بررسی با مدیر تماس بگیرید.","This email is linked to another Google identity. Contact the administrator."),
-      invalid_state: tr("درخواست ورود منقضی یا نامعتبر است. دوباره روی ادامه با گوگل بزنید.","This sign-in request expired or is invalid. Choose Continue with Google again."),
-    } as Record<string,string>)[reason]||tr("ورود گوگل کامل نشد. دوباره تلاش کنید یا از روش دیگری وارد شوید.","Google sign-in did not complete. Try again or use another sign-in method."));
-    if(problem){googleFailure(problem);setGoogleReturn(false);return;}
-    if(!code||!flow){googleFailure("invalid_response");setGoogleReturn(false);return;}
-    api.googleExchange(flow,code).then(result=>{api.setToken(result.token);setToken(result.token);}).catch(()=>googleFailure("exchange_failed")).finally(()=>setGoogleReturn(false));
-  },[]);
+  }, [adminRefresh]);
+  useEffect(() => {
+    const params = new URLSearchParams(location.hash.slice(1));
+    const code = params.get("google_code"),
+      flow = params.get("google_flow"),
+      problem = params.get("google_error");
+    if (!code && !problem) return;
+    history.replaceState({}, "", location.pathname + location.search);
+    const googleFailure = (reason: string) =>
+      setError(
+        (
+          {
+            admin_password_required: tr(
+              "برای ورود مدیر از ورود با رمز استفاده کنید.",
+              "Administrators must use password sign-in.",
+            ),
+            admin_otp_required: tr(
+              "برای ورود مدیر از ورود با رمز استفاده کنید.",
+              "Administrators must use password sign-in.",
+            ),
+            account_deleted: tr(
+              "حساب قبلی حذف شده است. برای ساخت حساب تازه، دوباره با گوگل ادامه دهید.",
+              "The previous account was deleted. Continue with Google again to create a fresh account.",
+            ),
+            account_suspended: tr(
+              "این حساب توسط مدیر تعلیق شده است. برای رفع تعلیق با مدیر تماس بگیرید.",
+              "This account is suspended. Contact the administrator to resume access.",
+            ),
+            verify_email: tr(
+              "برای این نشانی، از کد تأیید ایمیل استفاده کنید.",
+              "Use an email verification code for this address.",
+            ),
+            account_conflict: tr(
+              "این ایمیل به حساب گوگل دیگری متصل است. برای بررسی با مدیر تماس بگیرید.",
+              "This email is linked to another Google identity. Contact the administrator.",
+            ),
+            invalid_state: tr(
+              "درخواست ورود منقضی یا نامعتبر است. دوباره روی ادامه با گوگل بزنید.",
+              "This sign-in request expired or is invalid. Choose Continue with Google again.",
+            ),
+          } as Record<string, string>
+        )[reason] ||
+          tr(
+            "ورود گوگل کامل نشد. دوباره تلاش کنید یا از روش دیگری وارد شوید.",
+            "Google sign-in did not complete. Try again or use another sign-in method.",
+          ),
+      );
+    if (problem) {
+      googleFailure(problem);
+      setGoogleReturn(false);
+      return;
+    }
+    if (!code || !flow) {
+      googleFailure("invalid_response");
+      setGoogleReturn(false);
+      return;
+    }
+    api
+      .googleExchange(flow, code)
+      .then((result) => {
+        api.setToken(result.token);
+        setToken(result.token);
+      })
+      .catch(() => googleFailure("exchange_failed"))
+      .finally(() => setGoogleReturn(false));
+  }, []);
   useEffect(() => {
     saveLang(lang);
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
-    document.title = lang === "fa" ? "دروازه | Darvazeh" : "Darvazeh";
-  }, [lang]);
+    document.title = token
+      ? screenInfo(tab, lang).title + " · Darvazeh"
+      : lang === "fa"
+        ? "دروازه | Darvazeh"
+        : "Darvazeh";
+  }, [lang, tab, token]);
   useEffect(() => {
     if (!token || googleReturn) return;
     let active = true;
@@ -145,7 +252,7 @@ export default function App() {
       active = false;
       clearInterval(timer);
     };
-  }, [token,googleReturn]);
+  }, [token, googleReturn, refresh]);
   useEffect(() => {
     if (!countdown) return;
     const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -191,7 +298,7 @@ export default function App() {
     setToken(null);
     setUser(null);
     setOtpSent(false);
-    setTab("inbox");
+    navigate("overview");
     setError("");
     setNotice("");
   }
@@ -236,7 +343,17 @@ export default function App() {
       )}
     </>
   );
-  if(googleReturn)return <main className="login-shell"><section className="login-card"><h1>{tr("در حال ورود با گوگل…","Completing Google sign-in…")}</h1><p role="status">{tr("چند لحظه صبر کنید.","Please wait a moment.")}</p></section></main>;
+  if (googleReturn)
+    return (
+      <main className="login-shell">
+        <section className="login-card">
+          <h1>{tr("در حال ورود با گوگل…", "Completing Google sign-in…")}</h1>
+          <p role="status">
+            {tr("چند لحظه صبر کنید.", "Please wait a moment.")}
+          </p>
+        </section>
+      </main>
+    );
   if (!token || !user)
     return (
       <main className="login-shell">
@@ -285,22 +402,39 @@ export default function App() {
             <h2>
               {token
                 ? tr("در حال باز کردن صندوق…", "Opening your inbox…")
-                : usePassword ? tr("به دروازه خوش آمدید", "Welcome to Darvazeh") : otpSent
-                  ? tr("ایمیل‌تان را بررسی کنید", "Check your email")
-                  : tr("از همین‌جا وارد شوید", "Your doorway starts here")}
+                : usePassword
+                  ? tr("به دروازه خوش آمدید", "Welcome to Darvazeh")
+                  : otpSent
+                    ? tr("ایمیل‌تان را بررسی کنید", "Check your email")
+                    : tr("از همین‌جا وارد شوید", "Your doorway starts here")}
             </h2>
-            {!usePassword && <p className="muted">
-              {otpSent
-                ? tr(
-                    "کد شش‌رقمی در صف ارسال به نشانی زیر است.",
-                    "Your six-digit code is queued for the address below.",
-                  )
-                : tr(
-                    "ایمیل‌تان را وارد کنید تا کد ورود را برایتان بفرستیم.",
-                    "Enter your email and we’ll send you a sign-in code.",
-                  )}
-            </p>}
-            {!token && usePassword ? <PasswordAccess lang={lang} onSignedIn={value=>{api.setToken(value);setToken(value);}} onUseOtp={()=>{setUsePassword(false);setError("");}}/> : !token &&
+            {!usePassword && (
+              <p className="muted">
+                {otpSent
+                  ? tr(
+                      "کد شش‌رقمی در صف ارسال به نشانی زیر است.",
+                      "Your six-digit code is queued for the address below.",
+                    )
+                  : tr(
+                      "ایمیل‌تان را وارد کنید تا کد ورود را برایتان بفرستیم.",
+                      "Enter your email and we’ll send you a sign-in code.",
+                    )}
+              </p>
+            )}
+            {!token && usePassword ? (
+              <PasswordAccess
+                lang={lang}
+                onSignedIn={(value) => {
+                  api.setToken(value);
+                  setToken(value);
+                }}
+                onUseOtp={() => {
+                  setUsePassword(false);
+                  setError("");
+                }}
+              />
+            ) : (
+              !token &&
               (!otpSent ? (
                 <form onSubmit={requestCode}>
                   <label htmlFor="email">{tr("ایمیل", "Email address")}</label>
@@ -397,9 +531,22 @@ export default function App() {
                     </button>
                   </div>
                 </form>
-              ))}
-            {!usePassword && <button type="button" className="text-button" onClick={()=>{setUsePassword(true);setOtpSent(false);setError("");}}>{tr("ورود با نام کاربری و رمز", "Use username and password")}</button>}
-            {!token && <GoogleLogin lang={lang}/>}
+              ))
+            )}
+            {!usePassword && (
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => {
+                  setUsePassword(true);
+                  setOtpSent(false);
+                  setError("");
+                }}
+              >
+                {tr("ورود با نام کاربری و رمز", "Use username and password")}
+              </button>
+            )}
+            {!token && <GoogleLogin lang={lang} />}
             {alerts}
             <div className="trial-note">
               <img src="/darvazeh-mark.svg" alt="" />
@@ -429,20 +576,34 @@ export default function App() {
       </main>
     );
   const sub = user.subscription;
-  const devices = (user.devices || []).filter(d => !d.revokedAt);
+  const devices = (user.devices || []).filter((d) => !d.revokedAt);
   const isAdmin = user.role === "Admin";
-  const labels: Record<Tab, string> = {
-    inbox: tr("صندوق پیام‌ها", "Inbox"),
-    send: tr("نوشتن پیام", "Compose"),
-    device: tr("گوشی من", "My phone"),
-    settings: tr("تنظیمات", "Settings"),
-    membership: tr("اشتراک من", "My membership"),
-    admin: tr("مدیریت", "Administration"),
-  };
+  const visiblePeople = users
+    .filter((u) =>
+      (u.email + " " + (u.username || ""))
+        .toLowerCase()
+        .includes(search.trim().toLowerCase()),
+    )
+    .filter(
+      (u) =>
+        peopleStatus === "all" ||
+        (peopleStatus === "suspended"
+          ? !!u.suspendedAt
+          : peopleStatus === "unverified"
+            ? !u.emailVerified && !u.suspendedAt
+            : !u.suspendedAt && u.emailVerified),
+    );
+  const currentPeoplePage = Math.min(
+    peoplePage,
+    Math.max(1, Math.ceil(visiblePeople.length / 10)),
+  );
   const activity = (s: string) =>
     ({
       signed_in: tr("ورود به حساب", "Signed in"),
-      account_created_by_admin: tr("ساخت کاربر توسط مدیر", "User created by administrator"),
+      account_created_by_admin: tr(
+        "ساخت کاربر توسط مدیر",
+        "User created by administrator",
+      ),
       account_modified: tr("ویرایش کاربر", "User updated"),
       account_suspended: tr("تعلیق حساب", "Account suspended"),
       account_resumed: tr("رفع تعلیق حساب", "Account resumed"),
@@ -450,7 +611,10 @@ export default function App() {
       device_paused: tr("توقف اتصال گوشی", "Phone connection paused"),
       device_resumed: tr("ازسرگیری اتصال گوشی", "Phone connection resumed"),
       messages_deleted: tr("حذف تاریخچه پیام", "Message history deleted"),
-      admin_login_policy_updated: tr("تغییر امنیت ورود مدیر", "Administrator login policy updated"),
+      admin_login_policy_updated: tr(
+        "تغییر امنیت ورود مدیر",
+        "Administrator login policy updated",
+      ),
       trial_started: tr("آغاز دوره آزمایشی", "Trial started"),
       subscription_assigned: tr("فعال‌سازی اشتراک", "Membership activated"),
       features_updated: tr("تغییر دسترسی‌ها", "Feature access changed"),
@@ -468,59 +632,42 @@ export default function App() {
       message_failed: tr("ارسال ناموفق", "Message failed"),
     })[s] || tr("فعالیت حساب", "Account activity");
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        {brand}
-        <div className="account-tools">
-          {switcher}
-          <button className="text-button" onClick={logout}>
-            {tr("خروج", "Sign out")}
-          </button>
-        </div>
-      </header>
-      {!user.emailVerified && <VerifyEmailBanner lang={lang} onVerified={async()=>{await refresh();setNotice(tr("ایمیل تأیید و حساب فعال شد.","Email verified and account activated."));}}/>}
-      <div className="welcome-row">
-        <div>
-          <p className="eyebrow">{tr("به دروازه خوش آمدید", "WELCOME HOME")}</p>
-          <h1>{labels[tab]}</h1>
-          <p className="muted account-email" dir="ltr">
-            {user.email}
-          </p>
-        </div>
-        <button
-          className="membership-pill"
-          onClick={() => setTab("membership")}
-        >
-          {planName(sub)} · {sub.remainingMessages}{" "}
-          {tr("پیام باقی‌مانده", "messages left")}
-        </button>
-      </div>
-      <nav
-        className="tabs"
-        aria-label={tr("بخش‌های حساب", "Account navigation")}
-      >
-        {(Object.keys(labels) as Tab[])
-          .filter((t) => t !== "admin" || isAdmin)
-          .map((t) => (
-            <button
-              key={t}
-              className={tab === t ? "active" : ""}
-              onClick={() => {
-                setTab(t);
-                setError("");
-                setNotice("");
-                if (t === "admin") action(adminRefresh);
-              }}
-            >
-              {labels[t]}
-            </button>
-          ))}
-      </nav>
+    <WorkspaceShell
+      user={user}
+      lang={lang}
+      screen={tab}
+      onNavigate={navigate}
+      onLogout={logout}
+      onLanguage={setLang}
+    >
+      {!user.emailVerified && (
+        <VerifyEmailBanner
+          lang={lang}
+          onVerified={async () => {
+            await refresh();
+            setNotice(
+              tr(
+                "ایمیل تأیید و حساب فعال شد.",
+                "Email verified and account activated.",
+              ),
+            );
+          }}
+        />
+      )}
       {alerts}
-      {tab === "inbox" && <MessageHistory lang={lang}/>}
+      <Phones
+        user={user}
+        lang={lang}
+        showDevices={tab === "device"}
+        onChange={() => refresh()}
+      />
+      {tab === "overview" && (
+        <Overview user={user} lang={lang} onNavigate={navigate} />
+      )}
+      {tab === "inbox" && <MessageHistory lang={lang} />}
       {tab === "send" && (
         <section className="card narrow">
-          <h2>{tr("چند کلمه برای رسیدن", "A few words to connect")}</h2>
+          <h2>{tr("پیام تازه", "New message")}</h2>
           <p className="muted">
             {tr(
               "پیام از سیم‌کارت گوشی متصل شما فرستاده می‌شود. هزینه اپراتور جداگانه است.",
@@ -533,6 +680,23 @@ export default function App() {
                 "ارسال پیام در حال حاضر فعال نیست. اشتراک و ظرفیت باقی‌مانده را بررسی کنید.",
                 "Sending is currently unavailable. Check your membership and remaining allowance.",
               )}
+              <div>
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    navigate(user.emailVerified ? "membership" : "overview")
+                  }
+                >
+                  {tr(
+                    user.emailVerified
+                      ? "مشاهده اشتراک و ظرفیت"
+                      : "فعال‌سازی حساب",
+                    user.emailVerified
+                      ? "Review plan & allowance"
+                      : "Activate your account",
+                  )}
+                </button>
+              </div>
             </div>
           ) : (
             <form
@@ -543,7 +707,7 @@ export default function App() {
                     await api.sendSms(to, body, crypto.randomUUID());
                     setBody("");
                     await refresh();
-                    setTab("inbox");
+                    navigate("inbox");
                   },
                   tr("پیام برای ارسال ثبت شد.", "Your message is queued."),
                 );
@@ -573,7 +737,15 @@ export default function App() {
               />
               <div className="row between">
                 <span className="muted small">{body.length} / 4000</span>
-                <button className="btn" disabled={busy || !devices.length}>
+                <button
+                  className="btn"
+                  disabled={
+                    busy ||
+                    !devices.filter((d) => !d.adminPausedAt).length ||
+                    !to.trim() ||
+                    !body.trim()
+                  }
+                >
                   {tr("ارسال پیام", "Send message")}
                 </button>
               </div>
@@ -581,152 +753,221 @@ export default function App() {
                 <p className="hint">
                   {tr(
                     "ابتدا گوشی‌تان را از بخش «گوشی من» وصل کنید.",
-                    "Connect a phone in My phone first.",
+                    "Connect a phone in Phones & connection first.",
                   )}
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => navigate("device")}
+                  >
+                    {tr("اتصال گوشی", "Connect a phone")}
+                  </button>
                 </p>
               )}
             </form>
           )}
         </section>
       )}
-      <Phones user={user} lang={lang} showDevices={tab === "device"} onChange={() => refresh()} />
       {tab === "settings" && (
-        <section className="card narrow">
-          <h2>{tr("به سلیقه شما", "Make it yours")}</h2>
-          <p className="muted">
-            {tr(
-              "از پیام‌های دریافتی، یک نسخه در ایمیل‌تان داشته باشید.",
-              "Keep an email copy of incoming messages.",
-            )}
-          </p>
-          <p className="hint">{tr("ظرفیت ارسال ایمیل در این دوره", "Email forwards this period")}: {sub.usedEmailForwards} / {sub.emailForwardLimit}. {tr("با پایان ظرفیت ایمیل، پیام‌ها همچنان در صندوق وب ثبت می‌شوند.", "When email allowance runs out, messages still arrive in your web inbox.")}</p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              action(
-                () => api.updateSettings(forward, forwardEmail),
-                tr("تنظیمات ذخیره شد.", "Preferences saved."),
-              );
-            }}
-          >
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={forward}
-                onChange={(e) => setForward(e.target.checked)}
-              />
-              {tr(
-                "ارسال نسخه ایمیلی پیام‌ها",
-                "Email me a copy of incoming messages",
-              )}
-            </label>
-            <label htmlFor="forwardEmail">
-              {tr("نشانی ایمیل", "Email address")}
-            </label>
-            <input
-              id="forwardEmail"
-              type="email"
-              required
-              value={forwardEmail}
-              onChange={(e) => setForwardEmail(e.target.value)}
-              dir="ltr"
-            />
-            <button className="btn" disabled={busy}>
-              {tr("ذخیره تغییرات", "Save changes")}
-            </button>
-          </form>
-        </section>
-      )}
-      {tab === "settings" && <ProfileSecurity user={user} lang={lang} onSignedIn={value=>{api.setToken(value);setToken(value);refresh().catch(fail);setNotice(tr("رمز ذخیره شد.", "Password saved."));}}/>}
-      {tab === "membership" && (
-        <section className="card narrow">
-          <p className="eyebrow">
-            {tr("همراهی شما با دروازه", "YOUR DARVAZEH MEMBERSHIP")}
-          </p>
-          <h2>{planName(sub)}</h2>
-          <p className="muted">
-            {!user.emailVerified ? tr("دوره آزمایشی پس از تأیید ایمیل شروع می‌شود.","Your trial starts after you verify your email.") : sub.messageLimit===0 ? tr("ایمیل تأیید شده است. این نشانی قبلاً از دوره آزمایشی استفاده کرده؛ برای ادامه یک طرح انتخاب کنید.","Email verified. This email identity has already used its trial; choose a plan to continue.") : sub.active
-              ? tr("اشتراک شما فعال است.", "Your membership is active.")
-              : tr(
-                  "مدت اشتراک به پایان رسیده است.",
-                  "Your membership has expired.",
+        <div className="settings-grid">
+          {tab === "settings" && (
+            <section className="card narrow">
+              <h2>{tr("ارسال نسخه ایمیلی", "Email forwarding")}</h2>
+              <p className="muted">
+                {tr(
+                  "از پیام‌های دریافتی، یک نسخه در ایمیل‌تان داشته باشید.",
+                  "Keep an email copy of incoming messages.",
                 )}
-          </p>
-          <div className="usage-number">
-            {sub.usedMessages}
-            <small> / {sub.messageLimit}</small>
-          </div>
-          <p>
-            {tr(
-              "پیام استفاده‌شده از مجموع ارسال و دریافت",
-              "messages used across sending and receiving",
-            )}
-          </p>
-          <progress
-            value={Math.min(sub.usedMessages, sub.messageLimit)}
-            max={Math.max(1,sub.messageLimit)}
-          />
-          <p className="hint">{tr("ایمیل باقی‌مانده", "Email forwards remaining")}: {sub.remainingEmailForwards} / {sub.emailForwardLimit}</p>
-          <p className="hint">
-            {tr("اعتبار تا", "Valid until")} {date(sub.expiresAt)}
-          </p>
-          <div className="feature-grid">
-            <div>
-              <strong>{tr("ارسال پیام", "Sending")}</strong>
-              <span className="badge">
-                {sub.canSend
-                  ? tr("فعال", "Available")
-                  : tr("غیرفعال", "Unavailable")}
-              </span>
-            </div>
-            <div>
-              <strong>{tr("دریافت پیام", "Receiving")}</strong>
-              <span className="badge">
-                {sub.canReceive
-                  ? tr("فعال", "Available")
-                  : tr("غیرفعال", "Unavailable")}
-              </span>
-            </div>
-          </div>
-          <p className="muted">
-            {tr(
-              "برای خرید یک دوره، طرح و روش پرداخت را در پایین انتخاب کنید. پیام‌های ثبت‌شده در صندوق شما می‌مانند.",
-              "Choose a plan and payment option below to buy one period. Your existing messages stay in your inbox.",
-            )}
-          </p>
-          <p className="hint">
-            {tr(
-              "هر پیام دریافتی یا ثبت‌شده برای ارسال، یک پیام از ظرفیت اشتراک کم می‌کند؛ ارسال ناموفق هم در این ظرفیت حساب می‌شود.",
-              "Each incoming message or queued outgoing message uses one unit. Failed outgoing messages also use a unit.",
-            )}
-          </p>
-          {user.emailVerified && <BillingPanel lang={lang} onMembershipChanged={() => refresh()} />}
-        </section>
+              </p>
+              <p className="hint">
+                {tr(
+                  "ظرفیت ارسال ایمیل در این دوره",
+                  "Email forwards this period",
+                )}
+                : {sub.usedEmailForwards} / {sub.emailForwardLimit}.{" "}
+                {tr(
+                  "با پایان ظرفیت ایمیل، پیام‌ها همچنان در صندوق وب ثبت می‌شوند.",
+                  "When email allowance runs out, messages still arrive in your web inbox.",
+                )}
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  action(
+                    () => api.updateSettings(forward, forwardEmail),
+                    tr("تنظیمات ذخیره شد.", "Preferences saved."),
+                  );
+                }}
+              >
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={forward}
+                    onChange={(e) => setForward(e.target.checked)}
+                  />
+                  {tr(
+                    "ارسال نسخه ایمیلی پیام‌ها",
+                    "Email me a copy of incoming messages",
+                  )}
+                </label>
+                <label htmlFor="forwardEmail">
+                  {tr("نشانی ایمیل", "Email address")}
+                </label>
+                <input
+                  id="forwardEmail"
+                  type="email"
+                  required
+                  value={forwardEmail}
+                  onChange={(e) => setForwardEmail(e.target.value)}
+                  dir="ltr"
+                />
+                <button className="btn" disabled={busy}>
+                  {tr("ذخیره تغییرات", "Save changes")}
+                </button>
+              </form>
+            </section>
+          )}
+          {tab === "settings" && (
+            <ProfileSecurity
+              user={user}
+              lang={lang}
+              onSignedIn={(value) => {
+                api.setToken(value);
+                setToken(value);
+                refresh().catch(fail);
+                setNotice(tr("رمز ذخیره شد.", "Password saved."));
+              }}
+            />
+          )}
+        </div>
       )}
-      {tab === "admin" && isAdmin && <EmailDiagnostics lang={lang}/> }
-      {tab === "admin" && isAdmin && (
+      {tab === "membership" && (
         <>
-          <AdminSecurity lang={lang}/>
-          <AdminCreateUser lang={lang} onChange={adminRefresh}/>
-          <div className="stats-grid">
-            {stats &&
-              [
-                [tr("کاربران", "Users"), stats.users],
-                [
-                  tr("اشتراک فعال", "Active memberships"),
-                  stats.activeSubscriptions,
-                ],
-                [tr("دریافت‌شده", "Received"), stats.received],
-                [tr("ارسال‌شده", "Sent"), stats.sent],
-                [tr("در انتظار", "Queued"), stats.queued],
-                [tr("ناموفق", "Failed"), stats.failed],
-              ].map(([label, value]) => (
-                <div className="stat-card" key={label}>
-                  <span className="muted">{label}</span>
-                  <strong>{value}</strong>
+          <section className="card membership-summary">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">
+                  {tr("اشتراک فعلی", "CURRENT MEMBERSHIP")}
+                </p>
+                <h2>{planName(sub)}</h2>
+              </div>
+              <span className={"badge " + (sub.active ? "green" : "")}>
+                {!user.emailVerified
+                  ? tr("در انتظار تأیید", "Awaiting verification")
+                  : sub.active
+                    ? tr("فعال", "Active")
+                    : tr("غیرفعال", "Inactive")}
+              </span>
+            </div>
+            {!user.emailVerified ? (
+              <p className="hint">
+                {tr(
+                  "دوره آزمایشی پس از تأیید ایمیل شروع می‌شود.",
+                  "Your trial starts after you verify your email.",
+                )}
+              </p>
+            ) : sub.messageLimit === 0 ? (
+              <p className="hint">
+                {tr(
+                  "این نشانی قبلاً از دوره آزمایشی استفاده کرده؛ برای ادامه یک طرح انتخاب کنید.",
+                  "This email identity has already used its trial. Choose a plan to continue.",
+                )}
+              </p>
+            ) : (
+              <div className="membership-allowances">
+                <div>
+                  <div className="row between">
+                    <strong>
+                      {tr("ارسال و دریافت پیام", "Sending & receiving")}
+                    </strong>
+                    <span>
+                      {sub.usedMessages} / {sub.messageLimit}
+                    </span>
+                  </div>
+                  <progress
+                    aria-label={tr("مصرف پیام‌ها", "Messages used")}
+                    value={Math.min(sub.usedMessages, sub.messageLimit)}
+                    max={Math.max(1, sub.messageLimit)}
+                  />
+                  <p className="hint">
+                    {sub.remainingMessages}{" "}
+                    {tr("پیام باقی‌مانده", "messages remaining")}
+                  </p>
                 </div>
-              ))}
-          </div>
+                <div>
+                  <div className="row between">
+                    <strong>
+                      {tr("نسخه ایمیلی پیام‌ها", "Email forwarding")}
+                    </strong>
+                    <span>
+                      {sub.usedEmailForwards} / {sub.emailForwardLimit}
+                    </span>
+                  </div>
+                  <progress
+                    aria-label={tr("مصرف ارسال ایمیل", "Email forwards used")}
+                    value={Math.min(
+                      sub.usedEmailForwards,
+                      sub.emailForwardLimit,
+                    )}
+                    max={Math.max(1, sub.emailForwardLimit)}
+                  />
+                  <p className="hint">
+                    {sub.remainingEmailForwards}{" "}
+                    {tr("ارسال ایمیل باقی‌مانده", "email forwards remaining")}
+                  </p>
+                </div>
+              </div>
+            )}
+            <p className="hint">
+              {tr("اعتبار دوره تا", "Period valid until")} {date(sub.expiresAt)}
+            </p>
+          </section>
+          {user.emailVerified && (
+            <section className="card">
+              <BillingPanel lang={lang} onMembershipChanged={() => refresh()} />
+            </section>
+          )}
+          <details className="card allowance-explainer">
+            <summary>
+              {tr(
+                "ظرفیت پیام و دوره‌های خرید چگونه کار می‌کنند؟",
+                "How do allowances and purchased periods work?",
+              )}
+            </summary>
+            <p className="hint">
+              {tr(
+                "هر پیام دریافتی یا ثبت‌شده برای ارسال، یک پیام از ظرفیت اشتراک کم می‌کند؛ ارسال ناموفق هم در این ظرفیت حساب می‌شود. حذف تاریخچه، مصرف اشتراک را کم نمی‌کند.",
+                "Each incoming or queued outgoing message uses one unit, including failed sends. Deleting history does not restore allowance.",
+              )}
+            </p>
+            <p className="hint">
+              {tr(
+                "خریدها برای یک دوره‌اند و تمدید خودکار ندارند. نسخه ایمیلی پیام‌ها ظرفیت جداگانه دارد؛ با پایان آن، پیام‌ها همچنان در صندوق وب ثبت می‌شوند.",
+                "Each purchase covers one period with no automatic renewal. Email forwarding has a separate allowance; messages still arrive in your web inbox when it runs out.",
+              )}
+            </p>
+          </details>
+        </>
+      )}
+      {isAdmin && tab === "admin" && (
+        <AdminOverview
+          lang={lang}
+          stats={stats}
+          users={users}
+          activities={activities}
+          onNavigate={navigate}
+          onPeople={(status) => {
+            setPeopleStatus(status);
+            setPeoplePage(1);
+            setSearch("");
+            navigate("admin-users");
+          }}
+          activityLabel={activity}
+        />
+      )}
+      {isAdmin && tab === "admin-users" && (
+        <>
+          <AdminCreateUser lang={lang} onChange={adminRefresh} />
           <section className="card">
             <div className="section-heading">
               <h2>{tr("کاربران و دسترسی‌ها", "People & access")}</h2>
@@ -745,13 +986,63 @@ export default function App() {
               id="userSearch"
               type="search"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPeoplePage(1);
+              }}
               dir="ltr"
             />
-            {users
-              .filter((u) =>
-                u.email.toLowerCase().includes(search.toLowerCase()),
-              )
+            <div className="people-toolbar">
+              <span className="hint">
+                {visiblePeople.length}{" "}
+                {tr(
+                  "حساب",
+                  visiblePeople.length === 1 ? "account" : "accounts",
+                )}
+              </span>
+              <label className="sr-only" htmlFor="people-status">
+                {tr("وضعیت حساب", "Account status")}
+              </label>
+              <select
+                id="people-status"
+                value={peopleStatus}
+                onChange={(e) => {
+                  setPeopleStatus(e.target.value);
+                  setPeoplePage(1);
+                }}
+              >
+                <option value="all">{tr("همه حساب‌ها", "All accounts")}</option>
+                <option value="active">{tr("فعال", "Active")}</option>
+                <option value="unverified">
+                  {tr("در انتظار تأیید", "Unverified")}
+                </option>
+                <option value="suspended">
+                  {tr("تعلیق‌شده", "Suspended")}
+                </option>
+              </select>
+            </div>
+            {!visiblePeople.length && (
+              <div className="empty-state compact">
+                <h3>{tr("حسابی پیدا نشد", "No matching accounts")}</h3>
+                <p>
+                  {tr(
+                    "جست‌وجو یا فیلتر وضعیت را تغییر دهید.",
+                    "Try a different search or account status.",
+                  )}
+                </p>
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setSearch("");
+                    setPeopleStatus("all");
+                  }}
+                >
+                  {tr("پاک کردن فیلترها", "Clear filters")}
+                </button>
+              </div>
+            )}
+            {visiblePeople
+              .slice((currentPeoplePage - 1) * 10, currentPeoplePage * 10)
               .map((u) => (
                 <AdminUserCard
                   key={u.id}
@@ -768,7 +1059,34 @@ export default function App() {
                   }
                 />
               ))}
+            <nav
+              className="row between pager"
+              aria-label={tr("صفحه‌بندی کاربران", "People pagination")}
+            >
+              <button
+                className="text-button"
+                disabled={currentPeoplePage <= 1}
+                onClick={() => setPeoplePage((p) => p - 1)}
+              >
+                {tr("پیشین", "Previous")}
+              </button>
+              <span>
+                {currentPeoplePage} /{" "}
+                {Math.max(1, Math.ceil(visiblePeople.length / 10))}
+              </span>
+              <button
+                className="text-button"
+                disabled={currentPeoplePage * 10 >= visiblePeople.length}
+                onClick={() => setPeoplePage((p) => p + 1)}
+              >
+                {tr("بعدی", "Next")}
+              </button>
+            </nav>
           </section>
+        </>
+      )}
+      {isAdmin && tab === "admin-plans" && (
+        <>
           <section className="card">
             <h2>{tr("طرح‌های اشتراک", "Membership plans")}</h2>
             <PlanManager
@@ -787,8 +1105,16 @@ export default function App() {
               }
             />
           </section>
-          <PaymentWalletAdmin lang={lang} />
-          <AdminPayments lang={lang} />
+        </>
+      )}
+      {isAdmin && tab === "admin-payments" && <AdminPayments lang={lang} />}
+      {isAdmin && tab === "admin-wallet" && <PaymentWalletAdmin lang={lang} />}
+      {isAdmin && tab === "admin-security" && (
+        <AdminSecurity lang={lang} email={user.email} />
+      )}
+      {isAdmin && tab === "admin-delivery" && <EmailDiagnostics lang={lang} />}
+      {isAdmin && tab === "admin-activity" && (
+        <>
           <section className="card">
             <h2>{tr("فعالیت‌های تازه", "Recent activity")}</h2>
             <p className="hint">
@@ -809,14 +1135,7 @@ export default function App() {
           </section>
         </>
       )}
-      <footer>
-        Darvazeh ·{" "}
-        {tr(
-          "فاصله‌ها می‌گذرند؛ پیوندها می‌مانند.",
-          "Distances change. Connections stay.",
-        )}
-      </footer>
-    </div>
+    </WorkspaceShell>
   );
 }
 function AdminUserCard({
@@ -854,7 +1173,6 @@ function AdminUserCard({
             : tr("کاربر", "Member")}
         </span>
       </div>
-      <AdminAccountControls user={u} lang={lang} busy={busy} update={update}/>
       <div className="user-counters">
         <span>
           {tr("دریافت", "Received")}: {u.received}
@@ -872,87 +1190,100 @@ function AdminUserCard({
           {tr("گوشی", "Phones")}: {u.deviceCount}
         </span>
       </div>
-      <div className="row">
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={s.sendEnabled}
-            disabled={busy}
-            onChange={(e) =>
-              update(() =>
-                api.setFeatures(u.id, e.target.checked, s.receiveEnabled),
-              )
-            }
-          />
-          {tr("اجازه ارسال", "Allow sending")}
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={s.receiveEnabled}
-            disabled={busy}
-            onChange={(e) =>
-              update(() =>
-                api.setFeatures(u.id, s.sendEnabled, e.target.checked),
-              )
-            }
-          />
-          {tr("اجازه دریافت", "Allow receiving")}
-        </label>
-      </div>
-      <button
-        className="text-button"
-        disabled={busy}
-        onClick={() => update(() => api.setFeatures(u.id, null, null))}
-      >
-        {tr("استفاده از دسترسی‌های طرح", "Use plan permissions")}
-      </button>
-      <p className="hint">
-        {tr("اعتبار تا", "Valid until")}{" "}
-        {new Date(s.expiresAt).toLocaleString(
-          lang === "fa" ? "fa-IR" : "en-NZ",
-        )}
-      </p>
-      <div className="row">
-        <select
-          aria-label={tr("انتخاب طرح برای", "Choose plan for") + " " + u.email}
-          value={selected}
-          onChange={(e) => setSelected(e.target.value)}
-        >
-          <option value="">{tr("انتخاب طرح…", "Choose a plan…")}</option>
-          {plans.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.code === "trial" ? tr("آزمایشی", "Trial") : p.name} ·{" "}
-              {p.durationDays} {tr("روز", "days")} / {p.messageLimit}
-            </option>
-          ))}
-        </select>
+      <details className="account-details">
+        <summary>
+          {tr("مدیریت حساب و دسترسی‌ها", "Manage account & access")}
+        </summary>
+        <AdminAccountControls
+          user={u}
+          lang={lang}
+          busy={busy}
+          update={update}
+        />
+        <div className="row">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={s.sendEnabled}
+              disabled={busy}
+              onChange={(e) =>
+                update(() =>
+                  api.setFeatures(u.id, e.target.checked, s.receiveEnabled),
+                )
+              }
+            />
+            {tr("اجازه ارسال", "Allow sending")}
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={s.receiveEnabled}
+              disabled={busy}
+              onChange={(e) =>
+                update(() =>
+                  api.setFeatures(u.id, s.sendEnabled, e.target.checked),
+                )
+              }
+            />
+            {tr("اجازه دریافت", "Allow receiving")}
+          </label>
+        </div>
         <button
-          className="btn secondary"
-          disabled={busy || !selected}
-          onClick={() => {
-            if (
-              window.confirm(
-                tr(
-                  "اشتراک جدید از اکنون آغاز و ظرفیت پیام‌ها از نو محاسبه شود؟",
-                  "Start a new membership now with a fresh message allowance?",
-                ),
-              )
-            )
-              update(() => api.assignPlan(u.id, selected));
-          }}
+          className="text-button"
+          disabled={busy}
+          onClick={() => update(() => api.setFeatures(u.id, null, null))}
         >
-          {tr("فعال‌سازی / تمدید", "Activate / renew")}
+          {tr("استفاده از دسترسی‌های طرح", "Use plan permissions")}
         </button>
-      </div>
-      {u.lastLoginAt && (
         <p className="hint">
-          {tr("آخرین ورود", "Last sign-in")}:{" "}
-          {new Date(u.lastLoginAt).toLocaleString(
+          {tr("اعتبار تا", "Valid until")}{" "}
+          {utcDate(s.expiresAt).toLocaleString(
             lang === "fa" ? "fa-IR" : "en-NZ",
           )}
         </p>
-      )}
+        <div className="row">
+          <select
+            aria-label={
+              tr("انتخاب طرح برای", "Choose plan for") + " " + u.email
+            }
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+          >
+            <option value="">{tr("انتخاب طرح…", "Choose a plan…")}</option>
+            {plans.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.code === "trial" ? tr("آزمایشی", "Trial") : p.name} ·{" "}
+                {p.durationDays} {tr("روز", "days")} / {p.messageLimit}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn secondary"
+            disabled={busy || !selected}
+            onClick={() => {
+              if (
+                window.confirm(
+                  tr(
+                    "اشتراک جدید از اکنون آغاز و ظرفیت پیام‌ها از نو محاسبه شود؟",
+                    "Start a new membership now with a fresh message allowance?",
+                  ),
+                )
+              )
+                update(() => api.assignPlan(u.id, selected));
+            }}
+          >
+            {tr("فعال‌سازی / تمدید", "Activate / renew")}
+          </button>
+        </div>
+        {u.lastLoginAt && (
+          <p className="hint">
+            {tr("آخرین ورود", "Last sign-in")}:{" "}
+            {utcDate(u.lastLoginAt).toLocaleString(
+              lang === "fa" ? "fa-IR" : "en-NZ",
+            )}
+          </p>
+        )}
+      </details>
     </article>
   );
 }
