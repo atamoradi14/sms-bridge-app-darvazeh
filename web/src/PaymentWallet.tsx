@@ -90,7 +90,7 @@ export function PaymentWalletAdmin({ lang }: { lang: Lang }) {
   const ready = wallet.purchaseReady;
   const needsMerchant = connected && verified && accessActive && !wallet.merchantEnabled;
   const title = !wallet.relayConfigured
-    ? c("سرور پرداخت ایران پیکربندی نشده است", "The Iran payment relay is not configured")
+    ? c("پرداخت تومانی هنوز متصل نشده است", "Toman payments are not connected yet")
     : ready
       ? c("آمادهٔ دریافت پرداخت‌های تومانی", "Ready for toman payments")
       : !connected

@@ -1,3 +1,4 @@
+import {utcDate} from "./format";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   api,
@@ -90,7 +91,7 @@ function OrderList({ orders, lang }: { orders: PaymentOrder[]; lang: Lang }) {
               <strong>{order.planName}</strong>
               {order.email && <small dir="ltr">{order.email}</small>}
               <span className="muted small">
-                {new Date(order.createdAt).toLocaleString(
+                {utcDate(order.createdAt).toLocaleString(
                   lang === "fa" ? "fa-IR" : "en-NZ",
                 )}
               </span>
