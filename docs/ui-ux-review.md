@@ -4,7 +4,7 @@
 
 Branch: `codex/darvazeh-uiux`, in the separate `sms-bridge-app-darvazeh-uiux` worktree. Based on updated local main `352bc6f`, including fetched origin/main `3937388`, the committed default-wallet change and the newer toman popup/VPN-banner change. Main advanced during the review; the design commit was rebased cleanly onto it and rebuilt. Origin/main was fetched again after implementation and is an ancestor of this branch.
 
-The original checkout's Billing/index.css edits, release evidence and .claude directory were left untouched. The Billing/index.css work was committed to main during this task and is now included via the rebase. No credentials were copied into the worktree, no production database was used, and this branch has not been deployed or pushed.
+The original checkout's Billing/index.css edits, release evidence and .claude directory were left untouched. The Billing/index.css work was committed to main during this task and is now included via the rebase. No credentials were copied into the worktree, no production database was used, and the initial review was local only. The branch has now been pushed and merged into main; the workspace redesign is deployed as `release-20261114-02`. See `deploy/releases/release-20261114-02.json` for deployment verification.
 
 ## Review findings and implemented changes
 
