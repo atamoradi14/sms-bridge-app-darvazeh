@@ -1,0 +1,23 @@
+{
+  "release": "release-20261114-01",
+  "commit": "352bc6f",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:966fe23a3a0b1da868f6d530cd8be8427f7b99d6e4575d757adee831bfcd1b5e",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:84be87e746c56ed2836ae01e368cc5e1b1682bb21230000f0e36172dea0a0bed"
+  },
+  "apiUnchangedFrom": "release-20261113-07",
+  "backupBeforeDeploy": true,
+  "productionDataPreserved": true,
+  "changes": [
+    "toman checkout opens Ezpay in a new window, with a blocked-window fallback link",
+    "waiting panel checks the order every 10 seconds and on focus, and confirms automatically",
+    "VPN-off banner for buyers in Iran",
+    "admin payments card shows the real toman wallet state"
+  ],
+  "verification": [
+    "local browser run against the fake Ezpay relay: banner, waiting panel, blocked-window fallback, automatic confirmation",
+    "web type-check and build",
+    "public API and web health",
+    "live bundle contains the VPN banner"
+  ]
+}
