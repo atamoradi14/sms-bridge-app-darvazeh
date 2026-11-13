@@ -1,0 +1,21 @@
+{
+  "release": "release-20261113-07",
+  "commit": "9a92f1c",
+  "verifiedAtUtc": "2026-11-13T08:50:00Z",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:966fe23a3a0b1da868f6d530cd8be8427f7b99d6e4575d757adee831bfcd1b5e",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:949c908477ab8695b0fa24af2dc43189203f8d3a888208d8e360c5f834ac38a3"
+  },
+  "backupBeforeDeploy": ".local/backups/fieldsense-20261113T084208Z.db",
+  "productionDataPreserved": true,
+  "ezpayEnabled": true,
+  "paymentRelay": "https://paymentam.danafaraz.com",
+  "defaultWalletConnected": true,
+  "defaultWalletMerchantEnabled": true,
+  "verification": [
+    "verify-ezpay-wallet (consent, phone proof, reuse, merchant gate, link creation, reconcile, default wallet bootstrap)",
+    "environment",
+    "live default wallet bootstrap through the Iran relay (Ezpay access active, identity verified)",
+    "public API and web health"
+  ]
+}

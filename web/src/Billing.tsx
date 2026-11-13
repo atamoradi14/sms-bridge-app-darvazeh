@@ -129,6 +129,10 @@ export function BillingPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // A toman checkout opens Ezpay in its own window; this page waits for it and checks the order.
+  const [tomanWaiting, setTomanWaiting] = useState<{ order: string; url: string | null; opened: boolean } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const waitingPanel = useRef<HTMLDivElement>(null);
   const request = useRef<{
     planId: string;
     currency: string;
@@ -144,6 +148,52 @@ export function BillingPanel({
     setCatalog(c);
     setOrders(o);
   }
+  async function checkToman(order: string, manual = false) {
+    if (manual) setChecking(true);
+    try {
+      const result = await api.reconcilePayment(order);
+      if (result.status === "checkout_open") {
+        if (manual)
+          setNotice(
+            tr(
+              "پرداخت هنوز تأیید نشده است. اگر پرداخت کرده‌اید، تأیید چند دقیقه طول می‌کشد.",
+              "The payment isn’t confirmed yet. If you have paid, confirmation can take a few minutes.",
+            ),
+          );
+        return;
+      }
+      localStorage.removeItem("darvazeh.pendingTomanOrder");
+      setTomanWaiting(null);
+      request.current = null;
+      if (result.status.startsWith("paid_")) {
+        setNotice(
+          result.status === "paid_active"
+            ? tr("پرداخت تأیید شد؛ دوره شما فعال است.", "Payment confirmed. Your period is active.")
+            : tr("پرداخت تأیید شد؛ دوره تازه در نوبت است.", "Payment confirmed. Your next period is queued."),
+        );
+        await changed.current();
+      } else setNotice(paymentLabel(result.status, lang));
+      await load();
+    } catch (e) {
+      if (manual) setError(billingError(e, lang));
+    } finally {
+      if (manual) setChecking(false);
+    }
+  }
+  useEffect(() => {
+    if (!tomanWaiting) return;
+    const order = tomanWaiting.order;
+    const timer = setInterval(() => void checkToman(order), 10000);
+    const onFocus = () => void checkToman(order);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [tomanWaiting?.order]);
+  useEffect(() => {
+    if (tomanWaiting?.url) waitingPanel.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [tomanWaiting?.url]);
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -188,12 +238,7 @@ export function BillingPanel({
             );
             history.replaceState({}, "", location.pathname);
           } else if (pendingToman && !params.has("payment")) {
-            setNotice(
-              tr(
-                "پرداخت تومانی هنوز تأیید نشده است. پس از پرداخت، تأیید چند دقیقه طول می‌کشد.",
-                "The toman payment isn’t confirmed yet. After paying, confirmation can take a few minutes.",
-              ),
-            );
+            setTomanWaiting({ order: pendingToman, url: null, opened: false });
           } else if (attempt < 12) {
             setNotice(
               tr(
@@ -222,8 +267,23 @@ export function BillingPanel({
       request.current.currency !== currency
     )
       request.current = { planId: plan.id, currency, key: crypto.randomUUID() };
+    // Open the payment window now, while the click still counts as a user action; browsers block it after an await.
+    let paymentWindow: Window | null = null;
+    if (currency === "IRT") {
+      paymentWindow = window.open("", "_blank");
+      if (paymentWindow) {
+        paymentWindow.document.title = tr("در حال باز کردن ایزی‌پی…", "Opening Ezpay…");
+        paymentWindow.document.body.style.cssText = "font-family:Tahoma,sans-serif;text-align:center;padding:3rem;color:#174c44";
+        paymentWindow.document.body.dir = lang === "fa" ? "rtl" : "ltr";
+        paymentWindow.document.body.textContent = tr(
+          "در حال باز کردن صفحهٔ پرداخت ایزی‌پی… اگر داخل ایران هستید، فیلترشکن را خاموش کنید.",
+          "Opening the Ezpay payment page… If you are in Iran, turn off your VPN.",
+        );
+      }
+    }
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       const checkout = await api.checkout(
         plan.id,
@@ -231,6 +291,7 @@ export function BillingPanel({
         request.current.key,
       );
       if (checkout.status.startsWith("paid_")) {
+        paymentWindow?.close();
         await load();
         await changed.current();
         setNotice(
@@ -241,6 +302,7 @@ export function BillingPanel({
         );
         request.current = null;
       } else if (checkout.status !== "checkout_open") {
+        paymentWindow?.close();
         request.current = null;
         setError(
           tr(
@@ -255,11 +317,20 @@ export function BillingPanel({
             ? url.hostname === "checkout.stripe.com"
             : url.hostname === "ezpay.ir" || url.hostname.endsWith(".ezpay.ir");
         if (url.protocol !== "https:" || !allowed) throw new Error();
-        if (currency === "IRT")
+        if (currency === "IRT") {
           localStorage.setItem("darvazeh.pendingTomanOrder", checkout.id);
-        location.assign(url.href);
-      }
+          const opened = !!paymentWindow && !paymentWindow.closed;
+          if (opened) {
+            paymentWindow!.opener = null;
+            paymentWindow!.location.replace(url.href);
+          }
+          // If the browser blocked the window, the waiting panel offers a link the buyer can open themselves.
+          setTomanWaiting({ order: checkout.id, url: url.href, opened });
+          void load().catch(() => undefined);
+        } else location.assign(url.href);
+      } else paymentWindow?.close();
     } catch (e) {
+      paymentWindow?.close();
       setError(billingError(e, lang));
     } finally {
       setBusy(false);
@@ -298,6 +369,53 @@ export function BillingPanel({
         <p className="alert success" role="status">
           {notice}
         </p>
+      )}
+      {catalog?.tomanAvailable && (
+        <div className="alert vpn-banner" role="note">
+          <strong>
+            {tr("داخل ایران هستید؟ فیلترشکن (VPN) را خاموش کنید.", "In Iran? Turn off your VPN.")}
+          </strong>
+          <span>
+            {tr(
+              "صفحهٔ پرداخت تومانی ایزی‌پی با فیلترشکن روشن باز نمی‌شود یا پرداخت ناموفق می‌ماند. پیش از زدن دکمهٔ پرداخت تومانی آن را خاموش کنید.",
+              "Ezpay’s toman payment page won’t open, or the payment fails, while a VPN is on. Turn it off before pressing the toman payment button.",
+            )}
+          </span>
+        </div>
+      )}
+      {tomanWaiting && (
+        <div className="alert toman-waiting" role="status" ref={waitingPanel}>
+          <strong>
+            {tr("در انتظار پرداخت تومانی", "Waiting for your toman payment")}
+          </strong>
+          <span>
+            {tomanWaiting.url && tomanWaiting.opened
+              ? tr(
+                  "صفحهٔ پرداخت ایزی‌پی در پنجرهٔ تازه باز شد. پرداخت را آنجا کامل کنید و به این صفحه برگردید؛ تأیید خودکار انجام می‌شود.",
+                  "The Ezpay payment page opened in a new window. Finish paying there and come back here; confirmation is automatic.",
+                )
+              : tomanWaiting.url
+              ? tr(
+                  "مرورگر پنجرهٔ تازه را باز نکرد. دکمهٔ «باز کردن صفحهٔ پرداخت» را بزنید، پرداخت را کامل کنید و به این صفحه برگردید.",
+                  "Your browser didn’t open a new window. Press “Open payment page”, finish paying, then come back here.",
+                )
+              : tr(
+                  "یک پرداخت تومانی باز دارید. پس از پرداخت، تأیید چند دقیقه طول می‌کشد.",
+                  "You have an open toman payment. After paying, confirmation can take a few minutes.",
+                )}{" "}
+            {tr("فیلترشکن باید خاموش باشد.", "Keep your VPN off.")}
+          </span>
+          <div className="row">
+            {tomanWaiting.url && (
+              <a className="btn secondary" href={tomanWaiting.url} target="_blank" rel="noopener noreferrer">
+                {tr("باز کردن صفحهٔ پرداخت", "Open payment page")}
+              </a>
+            )}
+            <button className="btn" disabled={checking} onClick={() => checkToman(tomanWaiting.order, true)}>
+              {checking ? tr("در حال بررسی…", "Checking…") : tr("پرداخت کردم؛ بررسی کن", "I’ve paid — check now")}
+            </button>
+          </div>
+        </div>
       )}
       {catalog?.stripeAvailable && catalog.stripeTestMode && (
         <p className="alert">
@@ -377,8 +495,8 @@ export function BillingPanel({
               {catalog.tomanAvailable && plan.priceToman ? (
                 <p className="hint">
                   {tr(
-                    "پیش از پرداخت فیلترشکن را خاموش کنید. پس از پرداخت به همین صفحه برگردید؛ تأیید خودکار انجام می‌شود.",
-                    "Turn off any VPN before paying. Come back to this page afterwards; confirmation is automatic.",
+                    "صفحهٔ پرداخت در پنجرهٔ تازه باز می‌شود. فیلترشکن را خاموش کنید.",
+                    "The payment page opens in a new window. Turn off your VPN first.",
                   )}
                 </p>
               ) : null}
@@ -744,10 +862,9 @@ export function AdminPayments({ lang }: { lang: Lang }) {
                 "Stripe isn’t connected yet.",
               )}{" "}
           ·{" "}
-          {tr(
-            "کیف پول تومانی: اتصال در مرحله بعد",
-            "Toman wallet: connection planned for later",
-          )}
+          {catalog.tomanAvailable
+            ? tr("کیف پول تومانی: فعال", "Toman wallet: connected")
+            : tr("کیف پول تومانی: غیرفعال", "Toman wallet: not active")}
         </p>
       )}
       <OrderList orders={orders} lang={lang} />
