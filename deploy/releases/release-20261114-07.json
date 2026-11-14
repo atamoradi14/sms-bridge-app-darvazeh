@@ -1,0 +1,17 @@
+{
+  "release": "release-20261114-07",
+  "verifiedAtUtc": "2026-11-14T10:20:00Z",
+  "change": "Toman checkout opens Ezpay's card gateway (ipg.ezpay.ir/pdu) with Ezpay's new wallet link as fallback; toman links only for Iranian IPs (Cloudflare CF-IPCountry)",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:26cb32ef41445334a4616e6406a6f04d60b431ca3018388b6b5c50e9e6314fc0",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:fa06befb8ce28c3706bbc8c465ec864dafe65592f1d8a1ba205151a59d886691"
+  },
+  "productionDataPreserved": true,
+  "verification": [
+    "verify-ezpay-wallet.py (incl. region gate and card-gateway link), verify-billing.py and verify-vpn.py passed locally",
+    "both pods rolled out on ravand-worker-01; /health 200; no API errors in logs",
+    "live /api/billing/region from New Zealand answers country=NZ tomanAllowed=false (Cloudflare header reaches the API)",
+    "live web bundle contains the region pre-check and the not-in-Iran message"
+  ],
+  "remaining": ["first toman payment through the card-gateway link from inside Iran not yet made"]
+}
