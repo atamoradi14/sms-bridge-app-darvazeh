@@ -264,10 +264,11 @@ export const api = {
   updatePlan: (id: string, plan: Omit<Plan, "id">) =>
     send<Plan>(`/api/admin/plans/${id}`, "PUT", plan),
   billingCatalog: () => req<BillingCatalog>("/api/billing/catalog"),
+  paymentRegion: () => req<{ country: string | null; tomanAllowed: boolean }>("/api/billing/region"),
   paymentOrders: () => req<PaymentOrder[]>("/api/billing/orders"),
   adminPayments: () => req<PaymentOrder[]>("/api/admin/payments"),
   checkout: (planId: string, currency: string, requestKey: string) =>
-    send<{ id: string; status: string; checkoutUrl?: string }>(
+    send<{ id: string; status: string; checkoutUrl?: string; alternateUrl?: string | null }>(
       "/api/billing/checkout",
       "POST",
       { planId, currency, requestKey },

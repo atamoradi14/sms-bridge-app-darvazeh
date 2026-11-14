@@ -62,6 +62,10 @@ function billingError(error: unknown, lang: Lang) {
       "زمان این درخواست گذشته است. پرداخت تازه‌ای آغاز کنید.",
       "This checkout expired. Start a new payment.",
     ],
+    toman_requires_iran_ip: [
+      "آی‌پی شما داخل ایران نیست، بنابراین پرداخت تومانی کار نمی‌کند. روش پرداخت دیگری را امتحان کنید یا فیلترشکن را خاموش کنید.",
+      "Your IP address is not in Iran, so toman payment won’t work. Please try another payment method or turn off your VPN.",
+    ],
     checkout_rate_limit: [
       "چند درخواست پرداخت باز دارید. کمی بعد دوباره تلاش کنید.",
       "You have several open checkouts. Please try again later.",
@@ -132,8 +136,13 @@ export function BillingPanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   // A toman checkout opens Ezpay in its own window; this page waits for it and checks the order.
-  const [tomanWaiting, setTomanWaiting] = useState<{ order: string; url: string | null; opened: boolean } | null>(null);
+  const [tomanWaiting, setTomanWaiting] = useState<{ order: string; url: string | null; alternate?: string | null; opened: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
+  // Ezpay works only from Iranian IP addresses; the server checks again before creating a link.
+  const tomanRegion = useRef<boolean | null>(null);
+  useEffect(() => {
+    api.paymentRegion().then((r) => { tomanRegion.current = r.tomanAllowed; }).catch(() => undefined);
+  }, []);
   const reconciliationBusy = useRef(false);
   const waitingPanel = useRef<HTMLDivElement>(null);
   const request = useRef<{
@@ -270,6 +279,11 @@ export function BillingPanel({
       request.current = { planId: plan.id, currency, key: crypto.randomUUID() };
     // Open the payment window now, while the click still counts as a user action; browsers block it after an await.
     let paymentWindow: Window | null = null;
+    if (currency === "IRT" && tomanRegion.current === false) {
+      setNotice("");
+      setError(billingError({ code: "toman_requires_iran_ip" }, lang));
+      return;
+    }
     if (currency === "IRT") {
       paymentWindow = window.open("", "_blank");
       if (paymentWindow) {
@@ -326,7 +340,8 @@ export function BillingPanel({
             paymentWindow!.location.replace(url.href);
           }
           // If the browser blocked the window, the waiting panel offers a link the buyer can open themselves.
-          setTomanWaiting({ order: checkout.id, url: url.href, opened });
+          const alternate = checkout.alternateUrl && /^https:\/\/([a-z0-9-]+\.)*ezpay\.ir\//i.test(checkout.alternateUrl) ? checkout.alternateUrl : null;
+          setTomanWaiting({ order: checkout.id, url: url.href, alternate, opened });
           void load().catch(() => undefined);
         } else location.assign(url.href);
       } else paymentWindow?.close();
@@ -410,6 +425,11 @@ export function BillingPanel({
             {tomanWaiting.url && (
               <a className="btn secondary" href={tomanWaiting.url} target="_blank" rel="noopener noreferrer">
                 {tr("باز کردن صفحهٔ پرداخت", "Open payment page")}
+              </a>
+            )}
+            {tomanWaiting.alternate && (
+              <a className="btn secondary" href={tomanWaiting.alternate} target="_blank" rel="noopener noreferrer">
+                {tr("صفحه باز نشد؟ صفحهٔ دیگر ایزی‌پی", "Page didn’t work? Other Ezpay page")}
               </a>
             )}
             <button className="btn" disabled={checking} onClick={() => checkToman(tomanWaiting.order, true)}>

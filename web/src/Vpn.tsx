@@ -48,6 +48,7 @@ function vpnError(error: unknown, lang: Lang) {
     vpn_request_required: ["ابتدا پیکربندی VPN خود را دریافت کنید.", "Get your VPN configuration first."],
     payment_not_configured: ["پرداخت دلاری هنوز فعال نشده است.", "USD checkout isn’t connected yet."],
     payment_method_unavailable: ["پرداخت تومانی پس از اتصال کیف پول فعال می‌شود.", "Toman checkout will be available once the wallet is connected."],
+    toman_requires_iran_ip: ["آی‌پی شما داخل ایران نیست، بنابراین پرداخت تومانی کار نمی‌کند. روش پرداخت دیگری را امتحان کنید یا فیلترشکن را خاموش کنید.", "Your IP address is not in Iran, so toman payment won’t work. Please try another payment method or turn off your VPN."],
     checkout_rate_limit: ["چند درخواست پرداخت باز دارید. کمی بعد دوباره تلاش کنید.", "You have several open checkouts. Please try again later."],
     connection: ["اتصال برقرار نشد. اینترنت را بررسی کنید.", "Couldn’t connect. Please check your connection."],
   };
@@ -148,8 +149,13 @@ export function VpnPanel({ lang, emailVerified }: { lang: Lang; emailVerified: b
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
-  const [tomanOrder, setTomanOrder] = useState<{ id: string; url: string | null } | null>(null);
+  const [tomanOrder, setTomanOrder] = useState<{ id: string; url: string | null; alternate?: string | null } | null>(null);
   const requestKey = useRef<{ currency: string; key: string } | null>(null);
+  // Ezpay works only from Iranian IP addresses; the server checks again before creating a link.
+  const tomanRegion = useRef<boolean | null>(null);
+  useEffect(() => {
+    api.paymentRegion().then((r) => { tomanRegion.current = r.tomanAllowed; }).catch(() => undefined);
+  }, []);
 
   async function load(refresh = false) {
     const h = await vpnApi.home(refresh);
@@ -206,6 +212,11 @@ export function VpnPanel({ lang, emailVerified }: { lang: Lang; emailVerified: b
     if (!home?.plan) return;
     if (!requestKey.current || requestKey.current.currency !== currency) requestKey.current = { currency, key: crypto.randomUUID() };
     let win: Window | null = null;
+    if (currency === "IRT" && tomanRegion.current === false) {
+      setNotice("");
+      setError(vpnError({ code: "toman_requires_iran_ip" }, lang));
+      return;
+    }
     if (currency === "IRT") {
       win = window.open("", "_blank");
       if (win) win.document.body.textContent = tr("در حال باز کردن صفحهٔ پرداخت… فیلترشکن را خاموش کنید.", "Opening the payment page… Turn off your VPN.");
@@ -221,7 +232,8 @@ export function VpnPanel({ lang, emailVerified }: { lang: Lang; emailVerified: b
       if (currency === "USD") { location.assign(url.href); return; }
       localStorage.setItem(PENDING_TOMAN, c.id);
       if (win && !win.closed) { win.opener = null; win.location.replace(url.href); }
-      setTomanOrder({ id: c.id, url: url.href });
+      const alternate = c.alternateUrl && /^https:\/\/([a-z0-9-]+\.)*ezpay\.ir\//i.test(c.alternateUrl) ? c.alternateUrl : null;
+      setTomanOrder({ id: c.id, url: url.href, alternate });
     } catch (e) { win?.close(); setError(vpnError(e, lang)); }
     finally { setBusy(false); }
   }
@@ -352,6 +364,7 @@ export function VpnPanel({ lang, emailVerified }: { lang: Lang; emailVerified: b
                 <span>{tr("پرداخت را در صفحهٔ ایزی‌پی کامل کنید و برگردید. فیلترشکن باید خاموش باشد.", "Finish paying on the Ezpay page and come back. Keep your VPN off.")}</span>
                 <div className="row">
                   {tomanOrder.url && <a className="btn secondary" href={tomanOrder.url} target="_blank" rel="noopener noreferrer">{tr("باز کردن صفحهٔ پرداخت", "Open payment page")}</a>}
+                  {tomanOrder.alternate && <a className="btn secondary" href={tomanOrder.alternate} target="_blank" rel="noopener noreferrer">{tr("صفحه باز نشد؟ صفحهٔ دیگر ایزی‌پی", "Page didn’t work? Other Ezpay page")}</a>}
                   <button className="btn" disabled={busy} onClick={() => act(() => confirmOrder(tomanOrder.id))}>{tr("پرداخت کردم؛ بررسی کن", "I’ve paid — check now")}</button>
                 </div>
               </div>

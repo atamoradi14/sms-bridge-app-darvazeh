@@ -73,7 +73,7 @@ class Relay(BaseHTTPRequestHandler):
             if b['phoneNumber'] not in state['linked']: return self.refuse(103)
             uid = 'u' + uuid.uuid4().hex[:12]
             with lock: state['links'][uid] = {**b, 'status': 'PENDING'}
-            return self.respond({'resultCode': 0, 'uniqueId': uid, 'paymentLink': 'https://wallet.ezpay.ir/pay/' + uid})
+            return self.respond({'resultCode': 0, 'uniqueId': uid, 'paymentLink': 'https://wallet.ezpay.ir/pid-directly/' + uid})
         if m := re.fullmatch(r'/broker/payments/([\w-]+)', path):
             link = state['links'].get(m[1])
             ok = link and query['phoneNumber'] == [link['phoneNumber']] and query['factorNumber'] == [link['factorNumber']] and query['amount'] == [str(link['amount'])]
@@ -102,8 +102,8 @@ def main():
                'Billing__PaymentRelayEndpoint': f'http://127.0.0.1:{relay.server_port}', 'Billing__PaymentRelayApiKey': RELAY_KEY}
         log = (temporary / 'server.log').open('wb'); process = None
 
-        def call(path, body=None, token=None, method=None):
-            headers = {'Content-Type': 'application/json'}
+        def call(path, body=None, token=None, method=None, extra=None):
+            headers = {'Content-Type': 'application/json', **(extra or {})}
             if token: headers['Authorization'] = 'Bearer ' + token
             req = urllib.request.Request(base + path, headers=headers, data=json.dumps(body).encode() if body is not None else None,
                                          method=method or ('POST' if body is not None else 'GET'))
@@ -176,9 +176,19 @@ def main():
             # Link creation: a payment link into the default wallet for the plan's toman price in rial.
             assert ok(call('/api/billing/catalog', token=user))['tomanAvailable']
             key = str(uuid.uuid4())
-            order = ok(call('/api/billing/checkout', {'planId': plan['id'], 'currency': 'IRT', 'requestKey': key}, user))
-            assert order['status'] == 'checkout_open' and order['checkoutUrl'].startswith('https://wallet.ezpay.ir/pay/'), order
-            uid = order['checkoutUrl'].rsplit('/', 1)[1]; link = state['links'][uid]
+            # Region gate: Ezpay works only from Iran, so no link is created for a buyer abroad, behind a VPN, or on Tor.
+            before = len(state['links'])
+            for country in ('DE', 'XX', 'T1'):
+                status, refused = call('/api/billing/checkout', {'planId': plan['id'], 'currency': 'IRT', 'requestKey': key}, user, extra={'CF-IPCountry': country})
+                assert status == 403 and refused['code'] == 'toman_requires_iran_ip', (country, status, refused)
+            assert len(state['links']) == before
+            assert ok(call('/api/billing/region', extra={'CF-IPCountry': 'NZ'})) == {'country': 'NZ', 'tomanAllowed': False}
+            assert ok(call('/api/billing/region', extra={'CF-IPCountry': 'ir'})) == {'country': 'IR', 'tomanAllowed': True}
+            order = ok(call('/api/billing/checkout', {'planId': plan['id'], 'currency': 'IRT', 'requestKey': key}, user, extra={'CF-IPCountry': 'IR'}))
+            uid = order['alternateUrl'].rsplit('/', 1)[1]; link = state['links'][uid]
+            # The card gateway page opens first; Ezpay's own (wallet) link is the alternative.
+            assert order['status'] == 'checkout_open' and order['checkoutUrl'] == 'https://ipg.ezpay.ir/pdu/' + uid, order
+            assert order['alternateUrl'] == 'https://wallet.ezpay.ir/pid-directly/' + uid, order
             assert (link['phoneNumber'], link['amount'], link['factorNumber']) == (PHONE_NEW, 5_000_000, 'darvazeh-' + uuid.UUID(order['id']).hex), link
             print('link created:', order['checkoutUrl'])
             count = len(state['links'])
@@ -198,7 +208,7 @@ def main():
 
             # An open order on this wallet, then the wallet changes: its status is still checked against the wallet it was created for.
             late = ok(call('/api/billing/checkout', {'planId': plan['id'], 'currency': 'IRT', 'requestKey': str(uuid.uuid4())}, other))
-            late_uid = late['checkoutUrl'].rsplit('/', 1)[1]
+            late_uid = late['alternateUrl'].rsplit('/', 1)[1]
 
             # A wallet Ezpay already gives access to (code 21): phone ownership must be proved with an SMS code.
             time.sleep(61)  # one Ezpay code per minute
