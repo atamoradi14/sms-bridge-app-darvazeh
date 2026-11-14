@@ -1,0 +1,18 @@
+{
+  "release": "release-20261114-08",
+  "verifiedAtUtc": "2026-11-14T10:53:00Z",
+  "change": "Illustrated SMS forwarder and VPN service cards on the member overview; VPN toman price temporarily 1,000 toman for a real payment test (data change)",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:26cb32ef41445334a4616e6406a6f04d60b431ca3018388b6b5c50e9e6314fc0",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:abf16671b334496626050fa7efdc607fba4eead8e7230f205abb3e099f60c56f"
+  },
+  "productionDataPreserved": true,
+  "dataChanges": ["Plans vpn-iran PriceToman 1000000 -> 1000 (temporary, operator request; backup fieldsense-20261114T104100Z.db taken before)"],
+  "verification": [
+    "overview cards checked locally on desktop (1440px) and mobile (375px)",
+    "both pods rolled out on ravand-worker-01; /health 200; no API errors in logs",
+    "live web bundle contains the service showcase",
+    "post-deploy backup: vpn-iran PriceToman=1000, PriceUsdCents=400, purchasable"
+  ],
+  "remaining": ["restore VPN toman price to 1,000,000 after the test payment", "first toman payment through the card-gateway link from inside Iran"]
+}
