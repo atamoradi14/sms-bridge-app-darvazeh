@@ -1,0 +1,18 @@
+{
+  "release": "release-20261114-05",
+  "verifiedAtUtc": "2026-11-14T07:50:00Z",
+  "change": "VPN menu renamed to فیلترشکن با آیپی ایران, member validity bar, one-day trial default",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:df3c1424be82115837f0c263543852de57bcb893d5dc0ffcf6d95f104091ee47",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:ac0697000c534850d8e706ab07416e6967432dcf67b49beafda107c32ac781cb"
+  },
+  "preDeployBackup": ".local/backups/fieldsense-20261114T074001Z.db (sha256 d09598fa269b9af484cafb8afa5b69e0158f49bb1556c5dab620df07e9f652e1)",
+  "productionDataPreserved": true,
+  "verification": [
+    "verify-vpn.py, verify-billing.py and verify-membership.py passed locally",
+    "UI checked on a copy of the production backup: renamed menu, 1-day trial, validity bar",
+    "both pods rolled out on ravand-worker-01; /health 200; no API errors in logs",
+    "live web bundle contains the new menu label",
+    "post-deploy backup shows VpnPolicySettings TrialDays=1 and the one-time migration recorded"
+  ]
+}
