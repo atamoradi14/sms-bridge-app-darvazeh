@@ -1,0 +1,18 @@
+{
+  "release": "release-20261114-06",
+  "verifiedAtUtc": "2026-11-14T08:30:00Z",
+  "change": "VPN plan toman price 1,000,000 via Ezpay wallet checkout; sidebars grouped by service; VPN config expiry shown to members and admins",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:0b6d28fb3ac02703004684ecfe2abfd1668d13994ac00309528c47163f3840f9",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:7b23c793e591bff221f589b9ffbba70a7b2a0d0e36789c0499bb796516b1fcbd"
+  },
+  "productionDataPreserved": true,
+  "verification": [
+    "verify-vpn.py and verify-billing.py passed locally",
+    "UI checked on a copy of the production backup: grouped menus, expiry box and admin expiry column, toman price applied",
+    "both pods rolled out on ravand-worker-01; /health 200; no API errors in logs",
+    "live web bundle contains the grouped menu and expiry labels",
+    "post-deploy backup: vpn-iran plan PriceUsdCents=400, PriceToman=1000000, purchasable; one-time migration recorded"
+  ],
+  "remaining": ["first real toman VPN payment through Ezpay not yet made"]
+}
