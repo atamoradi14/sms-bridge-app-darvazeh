@@ -10,6 +10,7 @@ import {
 } from "./api";
 import type { Lang } from "./i18n";
 import { Icon } from "./WorkspaceShell";
+import { ServiceShowcase } from "./ServiceShowcase";
 import type { Screen } from "./workspaceNavigation";
 export function Overview({
   user,
@@ -57,6 +58,7 @@ export function Overview({
       : "send";
   return (
     <>
+      <ServiceShowcase user={user} lang={lang} onNavigate={onNavigate} />
       <div className="overview-metrics">
         <Metric
           icon="inbox"

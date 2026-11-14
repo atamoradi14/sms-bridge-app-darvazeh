@@ -1255,3 +1255,44 @@
   .workspace .vpn-connect { grid-template-columns: 1fr; }
   .workspace .vpn-connect figure { order: -1; }
 }
+
+/* Overview: one large illustrated entry card per service. */
+.service-showcase {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin-bottom: 24px;
+}
+.service-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  color: #f3ecd8;
+  box-shadow: 0 18px 40px -26px rgba(10, 30, 26, 0.6);
+}
+.service-card.sms { background: radial-gradient(120% 90% at 20% 0%, #1f5a4d 0%, #123d35 55%, #0c2a24 100%); }
+.service-card.vpn { background: radial-gradient(120% 90% at 80% 0%, #1b4766 0%, #10293f 55%, #0a1b2b 100%); color: #e4f1f6; }
+.service-art { display: block; width: 100%; height: auto; max-height: 260px; padding: 10px 12px 0; }
+.service-art .art-label { font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+.service-art .art-chip { font-size: 10.5px; font-weight: 600; }
+.service-copy { padding: 6px 26px 24px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.service-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.service-eyebrow { font-size: .72rem; font-weight: 600; letter-spacing: .05em; color: #e2c47f; }
+.service-card.vpn .service-eyebrow { color: #7fe0d2; }
+.service-card h2 { margin: 2px 0 0; font-size: 1.3rem; line-height: 1.6; color: inherit; }
+.service-card p { margin: 0; font-size: .84rem; line-height: 1.95; opacity: .86; }
+.service-card .row { margin-top: auto; padding-top: 10px; align-items: center; gap: 10px; flex-wrap: wrap; }
+.service-card .btn { background: #e9cf8e; color: #10302a; border-color: transparent; }
+.service-card.vpn .btn { background: #7fe0d2; color: #0a1b2b; }
+.service-card .btn.secondary { background: transparent; color: inherit; border: 1px solid rgba(255, 255, 255, .28); }
+.service-card .badge { background: rgba(255, 255, 255, .12); color: inherit; border-color: rgba(255, 255, 255, .2); }
+.service-card .badge.green { background: rgba(127, 224, 160, .18); color: #a8f0c0; }
+.service-card .badge.gold { background: rgba(233, 207, 142, .2); color: #f3dca0; }
+.service-meta { font-size: .76rem; opacity: .8; }
+.service-art .art-flow { animation: art-flow 1.4s linear infinite; }
+@keyframes art-flow { to { stroke-dashoffset: -24; } }
+@media (prefers-reduced-motion: reduce) { .service-art .art-flow { animation: none; } }
+@media (max-width: 1150px) { .service-showcase { grid-template-columns: 1fr; } }
+@media (max-width: 440px) { .service-copy { padding: 4px 18px 20px; } .service-card h2 { font-size: 1.12rem; } }
