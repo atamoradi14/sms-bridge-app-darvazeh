@@ -98,6 +98,8 @@ sandbox end-to-end test is required after connecting your account.
 
 ## VPN service (3x-ui)
 
+The panel server needs specific Xray and kernel settings for speed and IPv6 sites (sniffing *route only* off, REALITY self-target, BBR): see [deploy/vpn/tehran-xray-tuning.md](deploy/vpn/tehran-xray-tuning.md).
+
 Members can request a personal VPN configuration under **Services → فیلترشکن با آیپی ایران (VPN with an Iran IP)**. Each member gets exactly one 3x-ui client on a configured server, attached to all configured inbounds, so one subscription link (with QR code and v2rayTun/Hiddify/Streisand import buttons; v2rayNG and NPV Tunnel import from clipboard or QR) carries every route.
 
 - **Trial:** the first configuration per email identity includes a free data allowance (default **10 MB for 1 day**). A revoked or re-created account with the same identity gets no second trial.
