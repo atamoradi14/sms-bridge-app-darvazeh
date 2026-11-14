@@ -23,6 +23,20 @@ Panel backups taken before the changes: `/root/x-ui-before-sniff-fix-20261115.db
 | all three (10080, 8443, 9443) | Sniffing on, `http, tls, quic`, **Route only: off** |
 | 8443 REALITY vision, 9443 REALITY xhttp | Target `127.0.0.1:443`, SNI `iran2.daryajan.com` (the server's own Caddy site: "steal from yourself") |
 | subscription order (`subSortIndex`) | 8443 = 1, 9443 = 2, 10080 = 3 (the Cloudflare `iran1` route is the slowest for buyers in Iran) |
+| 8443, 9443 REALITY | **Min client version `1.0.0`** |
+
+## Xray core version: keep 26.7.28
+
+Xray-core 26.9.8 and newer silently reject REALITY clients whose TLS ClientHello has no X25519MLKEM768 key share
+(an XTLS/REALITY change; see 3x-ui issues #6568 and #6727, sing-box #4520). On 26.10.21 the `ios`, `edge` and `qq`
+fingerprints were refused, as are sing-box based apps (Hiddify, Karing, NekoBox), so buyers could import a config that
+never connects. On 2026-11-15 the core was rolled back with panel → Xray version → **v26.7.28** (the last release
+before the change) and min client version set to `1.0.0` (26.7.x treats an empty value as 26.3.27 and refuses older
+apps). After the rollback every fingerprint except `android` (no TLS 1.3) connects on 8443 and 9443, and
+`darvazeh.daryajan.com` loads in 0.3–0.4 s through all three inbounds. Backup: `/root/x-ui-before-core-rollback-20261115.db`.
+
+**Do not update the Xray core from the panel** until a release accepts clients without ML-KEM, or until the apps buyers
+use send it. Re-run the fingerprint check (ios, edge and a Hiddify client) before any upgrade.
 
 ## Xray template (panel → Xray configs)
 
