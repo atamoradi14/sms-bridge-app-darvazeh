@@ -5,6 +5,8 @@ namespace FieldSense.Api.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<VpnClient> VpnClients => Set<VpnClient>();
+    public DbSet<VpnPolicy> VpnPolicies => Set<VpnPolicy>();
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<SecuritySettings> SecuritySettings => Set<SecuritySettings>();
     public DbSet<Device> Devices => Set<Device>();
@@ -30,6 +32,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<VpnClient>().ToTable("VpnClients");
+        modelBuilder.Entity<VpnClient>().HasIndex(c => c.UserId).IsUnique().HasFilter("DeletedAt IS NULL");
+        modelBuilder.Entity<VpnClient>().HasIndex(c => c.ClientEmail).IsUnique();
+        modelBuilder.Entity<VpnClient>().HasIndex(c => c.TrialKey);
+        modelBuilder.Entity<VpnPolicy>().ToTable("VpnPolicySettings").Property(p => p.Id).ValueGeneratedNever();
         modelBuilder.Entity<DeviceLinkRequest>().HasIndex(r => new { r.Email, r.CreatedAt });
         modelBuilder.Entity<PaymentWallet>().Property(w => w.Id).ValueGeneratedNever();
         modelBuilder.Entity<WalletOwner>().HasKey(o => o.PhoneNumber);

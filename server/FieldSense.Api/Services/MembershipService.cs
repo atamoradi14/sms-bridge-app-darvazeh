@@ -40,13 +40,13 @@ public class MembershipService(AppDbContext db)
     {
         var current = await ReadCurrent(userId);
         bool CanStart(Subscription s) => s.Plan.Code == "trial" || !View(s).Active || s.UsedMessages >= s.MessageLimit;
-        if (current.User.EmailVerifiedAt==null || current.User.DeletedAt!=null || current.User.SuspendedAt!=null || !CanStart(current) || !await db.PaymentOrders.AnyAsync(p => p.UserId == userId && p.Status == "paid_queued"))
+        if (current.User.EmailVerifiedAt==null || current.User.DeletedAt!=null || current.User.SuspendedAt!=null || !CanStart(current) || !await db.PaymentOrders.AnyAsync(p => p.UserId == userId && p.Status == "paid_queued" && p.Product == "sms"))
             return current;
         var transaction = db.Database.CurrentTransaction == null ? await db.Database.BeginTransactionAsync() : null;
         try
         {
             current = await ReadCurrent(userId);
-            var order = CanStart(current) ? await db.PaymentOrders.Where(p => p.UserId == userId && p.Status == "paid_queued")
+            var order = CanStart(current) ? await db.PaymentOrders.Where(p => p.UserId == userId && p.Status == "paid_queued" && p.Product == "sms")
                 .OrderBy(p => p.PaidAt).ThenBy(p => p.Id).FirstOrDefaultAsync() : null;
             if (order != null)
             {

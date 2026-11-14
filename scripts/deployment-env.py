@@ -12,7 +12,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET_KEYS = ('FieldSense__AdminPassword', 'FieldSense__JwtKey', 'FieldSense__AcsConnectionString')
-OPTIONAL_SECRET_KEYS = ('Billing__StripeSecretKey', 'Billing__StripeWebhookSecret', 'Billing__PaymentRelayApiKey', 'Google__ClientSecret')
+OPTIONAL_SECRET_KEYS = ('Billing__StripeSecretKey', 'Billing__StripeWebhookSecret', 'Billing__PaymentRelayApiKey', 'Google__ClientSecret',
+                        'Vpn__Servers__0__ApiToken')
 OPTIONAL_CONFIG = {
     'Google__Enabled': 'false',
     'Google__ClientId': '',
@@ -26,6 +27,14 @@ OPTIONAL_CONFIG = {
     'Billing__EzpayEnabled': 'false',
     'Billing__PaymentRelayEndpoint': '',
     'Billing__DefaultWalletPhone': '',
+    # VPN product: the 3x-ui panel (full URL including its private base path) and its public subscription prefix.
+    'Vpn__Servers__0__Code': 'tehran',
+    'Vpn__Servers__0__Name': 'Tehran',
+    'Vpn__Servers__0__NameFa': 'تهران',
+    'Vpn__Servers__0__PanelBaseUrl': '',
+    'Vpn__Servers__0__SubscriptionBaseUrl': '',
+    'Vpn__Servers__0__InboundIds': '1,2,3',
+    'Vpn__Servers__0__Flow': 'xtls-rprx-vision',
 }
 CONFIG_KEYS = ('FieldSense__AdminEmail', 'FieldSense__AcsSenderAddress', 'FieldSense__AcsMock',
                'FieldSense__CorsOrigin', 'FieldSense__PublicApiBase')
@@ -53,6 +62,9 @@ def load(path):
         else:
             value = re.split(r'\s+#', value, maxsplit=1)[0].rstrip()
         values[key] = value
+    # Short alias for the first 3x-ui panel token.
+    if not values.get('Vpn__Servers__0__ApiToken') and values.get('VPN_SERVER1_TOKEN'):
+        values['Vpn__Servers__0__ApiToken'] = values['VPN_SERVER1_TOKEN']
     if not values.get('DOCKERHUB_USERNAME') and values.get('DOCKERHUB_USER'):
         values['DOCKERHUB_USERNAME'] = values['DOCKERHUB_USER']
     return values
@@ -108,6 +120,16 @@ def validate(values, build_only=False):
         errors.append('Billing__DefaultWalletPhone must look like 09xxxxxxxxx')
     if not re.fullmatch(r'https://[A-Za-z0-9.-]+(?::[0-9]+)?', values.get('Billing__PortalOrigin', OPTIONAL_CONFIG['Billing__PortalOrigin']).rstrip('/')):
         errors.append('Billing__PortalOrigin must be a public HTTPS origin')
+    vpn = [values.get(k, '') for k in ('Vpn__Servers__0__PanelBaseUrl', 'Vpn__Servers__0__SubscriptionBaseUrl', 'Vpn__Servers__0__ApiToken')]
+    if any(vpn):
+        if not re.fullmatch(r'https://[A-Za-z0-9.-]+(?::[0-9]+)?/[A-Za-z0-9_-]+/?', vpn[0]):
+            errors.append('Vpn__Servers__0__PanelBaseUrl must be the HTTPS panel URL including its private base path')
+        if not re.fullmatch(r'https://[A-Za-z0-9.-]+(?::[0-9]+)?/[A-Za-z0-9_-]+/?', vpn[1]):
+            errors.append('Vpn__Servers__0__SubscriptionBaseUrl must be the HTTPS subscription prefix, e.g. https://host/subPath/')
+        if len(vpn[2]) < 16:
+            errors.append('Set Vpn__Servers__0__ApiToken (a 3x-ui API token) to enable the VPN product')
+    if not re.fullmatch(r'[0-9]+(,[0-9]+)*', values.get('Vpn__Servers__0__InboundIds', '1,2,3')):
+        errors.append('Vpn__Servers__0__InboundIds must be comma-separated inbound IDs')
     google_enabled = values.get('Google__Enabled', 'false').lower()
     if google_enabled not in ('true', 'false'):
         errors.append('Google__Enabled must be true or false')

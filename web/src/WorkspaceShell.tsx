@@ -77,6 +77,12 @@ export function Icon({ name }: { name: string }) {
         <circle cx="10" cy="18" r="2" />
       </>
     ),
+    vpn: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" />
+      </>
+    ),
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
     close: <path d="m6 6 12 12M18 6 6 18" />,
     arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
@@ -132,7 +138,7 @@ export function WorkspaceShell({
         },
         {
           label: tr("اشتراک و درآمد", "COMMERCE"),
-          items: ["admin-plans", "admin-payments", "admin-wallet"],
+          items: ["admin-plans", "admin-vpn", "admin-payments", "admin-wallet"],
         },
         {
           label: tr("سامانه", "SYSTEM"),
@@ -143,6 +149,10 @@ export function WorkspaceShell({
         {
           label: tr("فضای شما", "WORKSPACE"),
           items: ["overview", "inbox", "send", "device"],
+        },
+        {
+          label: tr("سرویس‌ها", "SERVICES"),
+          items: ["vpn"],
         },
         {
           label: tr("حساب شما", "YOUR ACCOUNT"),

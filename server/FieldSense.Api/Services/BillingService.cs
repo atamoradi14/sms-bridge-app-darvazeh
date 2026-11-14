@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace FieldSense.Api.Services;
 
 public class BillingService(AppDbContext db, MembershipService membership, IStripeGateway stripe,
-    EzpayBroker ezpay, PaymentWalletService wallet, IOptions<BillingSettings> options, IWebHostEnvironment environment)
+    EzpayBroker ezpay, PaymentWalletService wallet, IOptions<BillingSettings> options, IWebHostEnvironment environment, VpnService vpn)
 {
     private readonly BillingSettings settings = options.Value;
     private static string Text(JsonElement o, string key) => o.ValueKind == JsonValueKind.Object &&
@@ -39,11 +39,11 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
     {
         await membership.Current(userId);
         return new {
-            plans = await db.Plans.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.DurationDays).ToListAsync(),
+            plans = await db.Plans.AsNoTracking().Where(p => p.IsActive && p.Code != VpnService.PlanCode).OrderBy(p => p.DurationDays).ToListAsync(),
             stripeAvailable = settings.Configured, stripeTestMode = !settings.IsLive,
             tomanAvailable = EzpayConfigured && await wallet.Offered(), tomanProvider = "ezpay", legalName = settings.LegalName,
             tradingName = settings.TradingName,
-            queuedPeriods = await db.PaymentOrders.CountAsync(p => p.UserId == userId && p.Status == "paid_queued")
+            queuedPeriods = await db.PaymentOrders.CountAsync(p => p.UserId == userId && p.Status == "paid_queued" && p.Product == "sms")
         };
     }
 
@@ -75,6 +75,8 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
                     throw new BillingException("checkout_rate_limit", "درخواست‌های پرداخت زیادی باز است. کمی بعد تلاش کنید.", 429);
                 var plan = await db.Plans.SingleOrDefaultAsync(p => p.Id == planId && p.IsActive && p.IsPurchasable && p.Code != "trial");
                 if (plan == null) throw new BillingException("plan_not_for_sale", "این طرح برای فروش نیست.");
+                if (plan.Code == VpnService.PlanCode && (await vpn.Current(userId) == null || !(await vpn.Policy()).Enabled))
+                    throw new BillingException("vpn_request_required", "ابتدا پیکربندی VPN خود را دریافت کنید.", 409);
                 if (currency == "USD" && plan.PriceUsdCents is not (>= 50 and <= 99999999))
                     throw new BillingException("plan_not_for_sale", "قیمت دلاری این طرح هنوز مشخص نشده است.");
                 if (currency == "IRT" && plan.PriceToman is not (>= MinToman and <= MaxToman))
@@ -88,6 +90,7 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
                     DurationDays = plan.DurationDays, MessageLimit = plan.MessageLimit, EmailForwardLimit = plan.EmailForwardLimit,
                     SendEnabled = plan.SendEnabled, ReceiveEnabled = plan.ReceiveEnabled,
                     Provider = currency == "IRT" ? "ezpay" : "stripe", Currency = currency,
+                    Product = plan.Code == VpnService.PlanCode ? "vpn" : "sms",
                     AmountMinor = currency == "IRT" ? plan.PriceToman!.Value : plan.PriceUsdCents!.Value, RequestKey = requestKey, ReturnOrigin = origin };
                 db.PaymentOrders.Add(order);
                 await db.SaveChangesAsync();
@@ -172,7 +175,10 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
             order.ProviderPaymentId = "ezpay:" + reference;
             order.PaidAt = DateTime.UtcNow; order.Status = "paid_queued";
             membership.Log(order.UserId, "payment_confirmed", order.PlanName);
-            await db.SaveChangesAsync(); await transaction.CommitAsync();
+            await db.SaveChangesAsync();
+            await vpn.ApplyPayments(order.UserId);
+            await transaction.CommitAsync();
+            await vpn.TryPushUser(order.UserId);
             await membership.Current(order.UserId);
             return;
         }
@@ -245,12 +251,14 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
                 membership.Log(order.UserId, "payment_confirmed", order.PlanName);
             }
             await db.SaveChangesAsync();
+            await vpn.ApplyPayments(order.UserId);
             await membership.Current(order.UserId);
         }
         else if (order.PaidAt == null && Text(session, "status") == "expired") order.Status = "expired";
         else if (order.PaidAt == null && type == "checkout.session.async_payment_failed") order.Status = "failed";
         if (eventId != null) db.PaymentEvents.Add(new PaymentEventReceipt { Id = eventId, Type = type });
         await db.SaveChangesAsync(); await transaction.CommitAsync();
+        if (order.Product == "vpn") await vpn.TryPushUser(order.UserId);
     }
 
     private async Task ApplyRefund(JsonElement charge, string eventId, string type)
@@ -274,12 +282,14 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
         if (order.RefundedMinor == order.AmountMinor && order.Status != "refunded")
         {
             order.Status = "refunded";
+            if(order.Product == "vpn") await vpn.Refund(order);
             var current = await db.Subscriptions.SingleOrDefaultAsync(s => s.PaymentOrderId == order.Id && s.IsCurrent);
             if (current != null) current.ExpiresAt = DateTime.UtcNow;
             membership.Log(order.UserId, "payment_refunded", order.PlanName);
         }
         db.PaymentEvents.Add(new PaymentEventReceipt { Id = eventId, Type = type });
         await db.SaveChangesAsync(); await transaction.CommitAsync();
+        if (order.Product == "vpn") await vpn.TryPushUser(order.UserId);
     }
 }
 

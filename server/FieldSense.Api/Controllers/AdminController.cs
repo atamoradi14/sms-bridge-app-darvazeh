@@ -34,7 +34,7 @@ public class AdminController(AppDbContext db, MembershipService membership) : Co
             subscription = MembershipService.View(subscriptions.Single(s => s.UserId == u.Id)) }));
     }
     [HttpGet("plans")]
-    public async Task<IActionResult> Plans() => Ok(await db.Plans.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Code).ToListAsync());
+    public async Task<IActionResult> Plans() => Ok(await db.Plans.AsNoTracking().Where(p => p.IsActive && p.Code != VpnService.PlanCode).OrderBy(p => p.Code).ToListAsync());
     [HttpPost("plans")]
     public async Task<IActionResult> CreatePlan(PlanDto dto)
     {
@@ -42,7 +42,7 @@ public class AdminController(AppDbContext db, MembershipService membership) : Co
             string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Length > 80 ||
             dto.DurationDays is < 1 or > 3650 || dto.MessageLimit is < 1 or > 1000000 || !ValidPrices(dto) || dto.EmailForwardLimit is < 0 or > 1000000)
             return BadRequest(new { error = "نام، مدت و ظرفیت طرح را بررسی کنید." });
-        if (await db.Plans.AnyAsync(p => p.Code == dto.Code)) return Conflict(new { error = "این شناسه طرح قبلاً ثبت شده است." });
+        if (dto.Code == VpnService.PlanCode || await db.Plans.AnyAsync(p => p.Code == dto.Code)) return Conflict(new { error = "این شناسه طرح قبلاً ثبت شده است." });
         var plan = new MembershipPlan { Code = dto.Code!, Name = dto.Name.Trim(), DurationDays = dto.DurationDays,
             MessageLimit = dto.MessageLimit, EmailForwardLimit = dto.EmailForwardLimit, SendEnabled = dto.SendEnabled, ReceiveEnabled = dto.ReceiveEnabled,
             PriceUsdCents = dto.PriceUsdCents, PriceToman = dto.PriceToman, IsPurchasable = dto.IsPurchasable };
@@ -59,7 +59,7 @@ public class AdminController(AppDbContext db, MembershipService membership) : Co
     {
         var plan = await db.Plans.FindAsync(id);
         if (plan == null) return NotFound();
-        if (plan.Code == "trial" || dto.Code != plan.Code || string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Length > 80 ||
+        if (plan.Code == "trial" || plan.Code == VpnService.PlanCode || dto.Code != plan.Code || string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Length > 80 ||
             dto.DurationDays is < 1 or > 3650 || dto.MessageLimit is < 1 or > 1000000 || !ValidPrices(dto) || dto.EmailForwardLimit is < 0 or > 1000000)
             return BadRequest(new { error = "اطلاعات طرح یا قیمت‌ها معتبر نیست.", code = "invalid_plan" });
         plan.Name = dto.Name.Trim(); plan.DurationDays = dto.DurationDays; plan.MessageLimit = dto.MessageLimit; plan.EmailForwardLimit = dto.EmailForwardLimit;
@@ -72,7 +72,7 @@ public class AdminController(AppDbContext db, MembershipService membership) : Co
     public async Task<IActionResult> AssignPlan(Guid id, AssignPlanDto dto)
     {
         var user = await db.Users.SingleOrDefaultAsync(u=>u.Id==id && u.DeletedAt==null);
-        var plan = await db.Plans.SingleOrDefaultAsync(p => p.Id == dto.PlanId && p.IsActive);
+        var plan = await db.Plans.SingleOrDefaultAsync(p => p.Id == dto.PlanId && p.IsActive && p.Code != VpnService.PlanCode);
         if (user == null || plan == null) return NotFound();
         user.SendOverride = null; user.ReceiveOverride = null;
         await using var transaction = await db.Database.BeginTransactionAsync();
