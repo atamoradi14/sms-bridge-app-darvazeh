@@ -6,6 +6,8 @@ export type Screen =
   | "device"
   | "settings"
   | "membership"
+  | "vpn"
+  | "admin-vpn"
   | "admin"
   | "admin-users"
   | "admin-plans"
@@ -49,6 +51,20 @@ const pages: Record<Screen, [string, string, string, string, string]> = {
     "ظرفیت باقی‌مانده، انتخاب طرح و سابقه پرداخت.",
     "Your allowance, plan options and payment history.",
     "plan",
+  ],
+  vpn: [
+    "فیلترشکن (VPN)",
+    "VPN",
+    "پیکربندی شخصی، کد QR، مصرف و تمدید ماهانه.",
+    "Your personal configuration, QR code, usage and monthly renewal.",
+    "vpn",
+  ],
+  "admin-vpn": [
+    "فروش VPN",
+    "VPN service",
+    "قیمت، حجم آزمایشی و ماهانه، سرورها و مشترکان VPN.",
+    "Pricing, trial and monthly data, servers and VPN subscribers.",
+    "vpn",
   ],
   settings: [
     "حساب و تنظیمات",

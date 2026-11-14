@@ -1221,3 +1221,35 @@
 /* Preserve the latest main branch payment-state signposting in the workspace theme. */
 .workspace .vpn-banner { background:#fcf4df; border-inline-start:4px solid #ac8146; }
 .workspace .toman-waiting { background:#e8f1ee; color:#174c44; border-inline-start:4px solid #174c44; }
+
+/* VPN service */
+.workspace .vpn-features { margin: .5rem 0 1rem; padding-inline-start: 1.2rem; display: grid; gap: .4rem; }
+.workspace .vpn-usage { display: grid; gap: .6rem; margin: .5rem 0; }
+.workspace .vpn-usage progress { width: 100%; }
+.workspace .vpn-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .6rem; }
+.workspace .vpn-stats > div { display: grid; gap: .15rem; padding: .6rem .75rem; border-radius: 12px; background: var(--surface-muted, rgba(0,0,0,.04)); }
+.workspace .vpn-stats small { opacity: .7; }
+.workspace .vpn-dates { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin: .4rem 0 .8rem; font-size: .9rem; opacity: .85; }
+.workspace .vpn-dot { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; background: #9aa3a0; margin-inline-end: .35rem; vertical-align: middle; }
+.workspace .vpn-dot.on { background: #1f9d55; box-shadow: 0 0 0 3px rgba(31,157,85,.18); }
+.workspace .warn-text { color: #b4462f; }
+.workspace .vpn-connect { display: grid; grid-template-columns: 1fr auto; gap: 1.5rem; align-items: start; }
+.workspace .vpn-connect figure { margin: 0; text-align: center; }
+.workspace .vpn-qr { width: 240px; height: 240px; border-radius: 12px; background: #fff; padding: 8px; box-sizing: content-box; display: block; }
+.workspace .vpn-link { display: flex; gap: .5rem; margin: .8rem 0; }
+.workspace .vpn-link input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: .85rem; }
+.workspace .vpn-apps { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .8rem; }
+.workspace .vpn-steps { padding-inline-start: 1.2rem; display: grid; gap: .35rem; font-size: .92rem; }
+.workspace .vpn-policy { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .8rem 1rem; align-items: end; }
+.workspace .vpn-policy label { display: grid; gap: .3rem; font-size: .9rem; }
+.workspace .vpn-policy label.check, .workspace label.check { display: flex; align-items: center; gap: .4rem; }
+.workspace .vpn-table-wrap { overflow-x: auto; }
+.workspace .vpn-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.workspace .vpn-table th, .workspace .vpn-table td { text-align: start; padding: .6rem .5rem; border-bottom: 1px solid rgba(0,0,0,.08); vertical-align: top; }
+.workspace .vpn-table td small { display: block; margin-top: .15rem; }
+.workspace .vpn-actions { display: flex; flex-wrap: wrap; gap: .2rem .6rem; min-width: 220px; }
+.workspace .text-button.danger { color: #b4462f; }
+@media (max-width: 760px) {
+  .workspace .vpn-connect { grid-template-columns: 1fr; }
+  .workspace .vpn-connect figure { order: -1; }
+}

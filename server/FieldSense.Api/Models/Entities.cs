@@ -150,6 +150,7 @@ public class Subscription
 
 public class PaymentOrder
 {
+    public string Product { get; set; } = "sms";
     public int EmailForwardLimit { get; set; } = 0;
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid UserId { get; set; }

@@ -15,6 +15,7 @@ import { PasswordAccess, EmailDiagnostics } from "./PasswordAccess";
 import { Phones } from "./Phones";
 import { BillingPanel, PlanManager, AdminPayments } from "./Billing";
 import { PaymentWalletAdmin } from "./PaymentWallet";
+import { VpnPanel, VpnAdmin } from "./Vpn";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   api,
@@ -840,6 +841,7 @@ export default function App() {
           )}
         </div>
       )}
+      {tab === "vpn" && <VpnPanel lang={lang} emailVerified={user.emailVerified} />}
       {tab === "membership" && (
         <>
           <section className="card membership-summary">
@@ -1108,6 +1110,7 @@ export default function App() {
       )}
       {isAdmin && tab === "admin-payments" && <AdminPayments lang={lang} />}
       {isAdmin && tab === "admin-wallet" && <PaymentWalletAdmin lang={lang} />}
+      {isAdmin && tab === "admin-vpn" && <VpnAdmin lang={lang} />}
       {isAdmin && tab === "admin-security" && (
         <AdminSecurity lang={lang} email={user.email} />
       )}

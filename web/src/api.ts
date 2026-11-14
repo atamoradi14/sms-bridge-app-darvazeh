@@ -304,6 +304,80 @@ export const api = {
   walletTransactions: (page: number) =>
     req<WalletTransactions>(`/api/admin/wallet/transactions?currentPage=${page}`),
 };
+export type VpnAccount = {
+  id: string;
+  status: "trial" | "trial_used" | "trial_ended" | "awaiting_payment" | "active" | "depleted" | "expired" | "suspended" | "revoked";
+  serverCode: string;
+  serverName: string;
+  serverNameFa: string;
+  subscriptionUrl?: string | null;
+  trialGranted: boolean;
+  paidUntil?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  limitBytes: number;
+  limitOverrideBytes?: number | null;
+  usedUp: number;
+  usedDown: number;
+  usedTotal: number;
+  remainingBytes: number;
+  lifetimeUp: number;
+  lifetimeDown: number;
+  online: boolean;
+  activeIps: number;
+  ipLimit: number;
+  lastOnlineAt?: string | null;
+  panelEnabled: boolean;
+  syncedAt?: string | null;
+  suspendedAt?: string | null;
+  suspendedBy?: string | null;
+  suspendReason?: string | null;
+  pending: boolean;
+  lastError?: string | null;
+  createdAt: string;
+  deletedAt?: string | null;
+};
+export type VpnPolicy = { enabled: boolean; trialBytes: number; trialDays: number; monthlyBytes: number; periodDays: number; ipLimit: number };
+export type VpnPlan = { id: string; name: string; durationDays?: number; priceUsdCents: number | null; priceToman: number | null; isPurchasable: boolean };
+export type VpnHome = {
+  policy: VpnPolicy;
+  plan: VpnPlan | null;
+  servers: { code: string; name: string; nameFa: string }[];
+  trialAvailable: boolean;
+  stripeAvailable: boolean;
+  tomanAvailable: boolean;
+  account: VpnAccount | null;
+  orders: PaymentOrder[];
+};
+export type VpnAdminOverview = {
+  policy: VpnPolicy;
+  plan: VpnPlan | null;
+  stats: { total: number; active: number; trial: number; expired: number; suspended: number; online: number; overIpLimit: number; trafficBytes: number; revenueUsdCents: number; revenueToman: number };
+  servers: { code: string; name: string; configured: boolean; inbounds: number[] }[];
+};
+export type VpnServerStatus = {
+  code: string; name: string; configured: boolean; reachable: boolean; error?: string | null; online: number;
+  inbounds: { id: number; remark?: string; protocol?: string; port: number; enable: boolean; used: boolean }[];
+  missingInbounds?: number[];
+};
+export type VpnAdminRow = { email: string; clientEmail: string; account: VpnAccount };
+export const vpnApi = {
+  home: (refresh = false) => req<VpnHome>("/api/vpn" + (refresh ? "?refresh=true" : "")),
+  request: (serverCode: string) => send<VpnAccount>("/api/vpn/request", "POST", { serverCode }),
+  suspend: (suspended: boolean) => send<VpnAccount>("/api/vpn/suspension", "POST", { suspended }),
+  rotate: () => send<VpnAccount>("/api/vpn/rotate", "POST", {}),
+  admin: () => req<VpnAdminOverview>("/api/admin/vpn"),
+  servers: () => req<VpnServerStatus[]>("/api/admin/vpn/servers"),
+  savePolicy: (p: VpnPolicy & { priceUsdCents: number | null; priceToman: number | null }) => send<VpnPolicy>("/api/admin/vpn/policy", "PUT", p),
+  accounts: (includeRevoked = false) => req<VpnAdminRow[]>("/api/admin/vpn/accounts" + (includeRevoked ? "?includeRevoked=true" : "")),
+  adminSuspend: (id: string, suspended: boolean, reason?: string) => send<VpnAccount>(`/api/admin/vpn/accounts/${id}/suspension`, "POST", { suspended, reason }),
+  adminExtend: (id: string, days: number) => send<VpnAccount>(`/api/admin/vpn/accounts/${id}/extend`, "POST", { days }),
+  adminLimit: (id: string, monthlyBytes: number | null, currentBytes: number | null) => send<VpnAccount>(`/api/admin/vpn/accounts/${id}/limit`, "POST", { monthlyBytes, currentBytes }),
+  adminReset: (id: string) => send<VpnAccount>(`/api/admin/vpn/accounts/${id}/reset-traffic`, "POST", {}),
+  adminRotate: (id: string) => send<VpnAccount>(`/api/admin/vpn/accounts/${id}/rotate`, "POST", {}),
+  adminSync: (id: string) => send<VpnAccount>(`/api/admin/vpn/accounts/${id}/sync`, "POST", {}),
+  adminRevoke: (id: string) => req<{ revoked: boolean }>(`/api/admin/vpn/accounts/${id}`, { method: "DELETE" }),
+};
 export type WalletView = {
   connection: {
     status: "Connected" | "PendingConsent" | "Disconnected";

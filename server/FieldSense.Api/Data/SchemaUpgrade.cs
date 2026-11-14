@@ -122,6 +122,27 @@ public static class SchemaUpgrade
 
         foreach (var table in new[] { "Plans", "Subscriptions", "PaymentOrders" })
             await AddColumn(table, "EmailForwardLimit", "INTEGER NOT NULL DEFAULT 0");
+        // VPN product: one 3x-ui client per member, rules in a single policy row, checkout through the hidden vpn-iran plan.
+        await AddColumn("PaymentOrders", "Product", "TEXT NOT NULL DEFAULT 'sms'");
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS VpnClients (Id TEXT NOT NULL PRIMARY KEY, UserId TEXT NOT NULL, TrialKey TEXT NOT NULL,
+              TrialGranted INTEGER NOT NULL, ServerCode TEXT NOT NULL, ClientEmail TEXT NOT NULL, ClientUuid TEXT NOT NULL, SubId TEXT NOT NULL,
+              CreatedAt TEXT NOT NULL, DeletedAt TEXT NULL, PaidUntil TEXT NULL, PeriodStart TEXT NULL, PeriodEnd TEXT NULL,
+              LimitBytes INTEGER NOT NULL, LimitOverrideBytes INTEGER NULL, SuspendedAt TEXT NULL, SuspendedBy TEXT NULL, SuspendReason TEXT NULL,
+              UsedUp INTEGER NOT NULL, UsedDown INTEGER NOT NULL, LifetimeUp INTEGER NOT NULL, LifetimeDown INTEGER NOT NULL,
+              Online INTEGER NOT NULL, ActiveIps INTEGER NOT NULL, LastOnlineAt TEXT NULL, PanelEnabled INTEGER NOT NULL, SyncedAt TEXT NULL,
+              NeedsPush INTEGER NOT NULL, ResetPending INTEGER NOT NULL, LastError TEXT NULL);
+            CREATE UNIQUE INDEX IF NOT EXISTS IX_VpnClients_UserId ON VpnClients(UserId) WHERE DeletedAt IS NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS IX_VpnClients_ClientEmail ON VpnClients(ClientEmail);
+            CREATE INDEX IF NOT EXISTS IX_VpnClients_TrialKey ON VpnClients(TrialKey);
+            CREATE TABLE IF NOT EXISTS VpnPolicySettings (Id INTEGER NOT NULL PRIMARY KEY, Enabled INTEGER NOT NULL, TrialBytes INTEGER NOT NULL,
+              TrialDays INTEGER NOT NULL, MonthlyBytes INTEGER NOT NULL, PeriodDays INTEGER NOT NULL, IpLimit INTEGER NOT NULL, UpdatedAt TEXT NOT NULL);
+            """);
+        if (!await db.VpnPolicies.AnyAsync()) db.VpnPolicies.Add(new VpnPolicy());
+        if (!await db.Plans.AnyAsync(p => p.Code == VpnService.PlanCode))
+            db.Plans.Add(new MembershipPlan { Code = VpnService.PlanCode, Name = "Iran VPN · 1 month", DurationDays = 30, MessageLimit = 1,
+                SendEnabled = false, ReceiveEnabled = false, PriceUsdCents = 400, IsPurchasable = true });
+        await db.SaveChangesAsync();
         await AddColumn("Subscriptions", "UsedEmailForwards", "INTEGER NOT NULL DEFAULT 0");
         await AddColumn("Messages", "EmailForwardStatus", "TEXT NOT NULL DEFAULT 'not_requested'");
         foreach (var table in new[] { "Devices", "Messages" }) {

@@ -46,8 +46,8 @@ public class StripeGateway(HttpClient http, IOptions<BillingSettings> options, I
         var form = new Dictionary<string, string> {
             ["mode"] = "payment", ["customer_email"] = email,
             ["client_reference_id"] = order.UserId.ToString(),
-            ["success_url"] = origin + "/?payment=success&order=" + order.Id + "&session_id={CHECKOUT_SESSION_ID}",
-            ["cancel_url"] = origin + "/?payment=cancelled&order=" + order.Id,
+            ["success_url"] = origin + (order.Product == "vpn" ? "/?view=vpn&" : "/?") + "payment=success&order=" + order.Id + "&session_id={CHECKOUT_SESSION_ID}",
+            ["cancel_url"] = origin + (order.Product == "vpn" ? "/?view=vpn&" : "/?") + "payment=cancelled&order=" + order.Id,
             ["expires_at"] = new DateTimeOffset(order.CreatedAt.AddHours(1), TimeSpan.Zero).ToUnixTimeSeconds().ToString(),
             // Current Checkout API uses payment methods configured in the Stripe Dashboard.
             ["allow_promotion_codes"] = "false",
@@ -56,7 +56,7 @@ public class StripeGateway(HttpClient http, IOptions<BillingSettings> options, I
             ["line_items[0][price_data][currency]"] = "usd",
             ["line_items[0][price_data][unit_amount]"] = order.AmountMinor.ToString(),
             ["line_items[0][price_data][product_data][name]"] = "Darvazeh · " + order.PlanName,
-            ["line_items[0][price_data][product_data][description]"] = $"{order.DurationDays} days · {order.MessageLimit} messages · {order.EmailForwardLimit} email forwards · one period, no automatic renewal",
+            ["line_items[0][price_data][product_data][description]"] = order.Product == "vpn" ? "Iran VPN · one user · one calendar month · manual renewal" : $"{order.DurationDays} days · {order.MessageLimit} messages · {order.EmailForwardLimit} email forwards · one period, no automatic renewal",
             ["metadata[order_id]"] = order.Id.ToString(), ["metadata[user_id]"] = order.UserId.ToString(),
             ["payment_intent_data[metadata][order_id]"] = order.Id.ToString(),
             ["payment_intent_data[metadata][user_id]"] = order.UserId.ToString(),

@@ -33,6 +33,7 @@ dotnet build server/FieldSense.Api
 npm --prefix web run build
 python scripts/verify-membership.py
 python scripts/verify-billing.py
+python scripts/verify-vpn.py
 python -m unittest discover -s scripts -p test_deployment_env.py
 ```
 
@@ -94,6 +95,29 @@ The current deployment leaves Stripe disabled until root `.env` has the account'
 secret API key, webhook signing secret and `Billing__StripeEnabled=true`. No live
 payment or real card was used during local protocol-fixture verification. A Stripe
 sandbox end-to-end test is required after connecting your account.
+
+## VPN service (3x-ui)
+
+Members can request a personal VPN configuration under **Services → VPN**. Each member gets exactly one 3x-ui client on a configured server, attached to all configured inbounds, so one subscription link (with QR code and v2rayTun/Hiddify/Streisand import buttons; v2rayNG and NPV Tunnel import from clipboard or QR) carries every route.
+
+- **Trial:** the first configuration per email identity includes a free data allowance (default **10 MB**, no time limit). A revoked or re-created account with the same identity gets no second trial.
+- **Monthly plan:** default **USD 4 per 30 days with 5 GB**, one simultaneous user. Payment uses the normal USD/toman checkout through the hidden `vpn-iran` plan and activates the **same** configuration: no new link to import. Paying again while a period is running adds 30 days; paying after the data is used up starts a fresh period immediately. Longer paid time rolls over to a new period with a fresh quota every 30 days. There is no automatic charge.
+- **Members** see download/upload/remaining data, all-time totals, online state and active users vs. the limit, and can pause/resume or replace their link (revokes the old UUID and subscription).
+- **Administrators** (**Commerce → VPN service**) set trial data/length, data per period, period length, simultaneous users, USD/toman prices and whether new sign-ups are open; check panel connectivity and inbounds; and per subscriber suspend/resume (overrides the member), extend or shorten paid days, set a custom monthly quota, reset usage, force a sync, replace the link or revoke (deletes the panel client).
+- Darvazeh is the source of truth; every change is written to the panel, which enforces quota (`totalGB`), expiry and `limitIp`. Panel writes happen outside payment transactions; failures are stored and retried every two minutes by the VPN worker, which also reads usage and online users. Refunds remove the refunded days.
+
+Configure the server in root `.env` (the token is stored as a Kubernetes Secret, never sent to browsers):
+
+```text
+Vpn__Servers__0__PanelBaseUrl=https://PANEL_HOST/PRIVATE_PANEL_BASE_PATH
+Vpn__Servers__0__SubscriptionBaseUrl=https://DIRECT_HOST/PRIVATE_SUB_PATH/
+Vpn__Servers__0__ApiToken=TOKEN_FROM_3X-UI_SETTINGS_API_TOKEN
+# Optional: Vpn__Servers__0__Code/Name/NameFa (default tehran/Tehran/تهران), InboundIds (default 1,2,3)
+```
+
+Limits to know: 3x-ui enforces `limitIp` only when its Fail2ban IP-limit job is installed on the panel server; otherwise Darvazeh still shows and flags extra active users. Usage numbers are as fresh as the last sync (two minutes, or on refresh). Profiles exit through the server's own network, so a server inside Iran inherits its upstream filtering.
+
+`scripts/verify-vpn.py` exercises the whole flow against a stateful local 3x-ui fixture and the Stripe fixture; it never contacts a real panel.
 
 ## Browser-approved phones and health (2.2.0)
 
