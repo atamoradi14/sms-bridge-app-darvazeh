@@ -56,7 +56,7 @@ public class VpnPolicy
     /// <summary>When false, new members can't request a configuration and checkout is closed. Existing access continues.</summary>
     public bool Enabled { get; set; } = true;
     public long TrialBytes { get; set; } = 10L * 1024 * 1024;
-    public int TrialDays { get; set; } = 0;
+    public int TrialDays { get; set; } = 1;
     public long MonthlyBytes { get; set; } = 5L * 1024 * 1024 * 1024;
     public int PeriodDays { get; set; } = 30;
     public int IpLimit { get; set; } = 1;

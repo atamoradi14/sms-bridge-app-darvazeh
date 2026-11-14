@@ -139,6 +139,12 @@ public static class SchemaUpgrade
               TrialDays INTEGER NOT NULL, MonthlyBytes INTEGER NOT NULL, PeriodDays INTEGER NOT NULL, IpLimit INTEGER NOT NULL, UpdatedAt TEXT NOT NULL);
             """);
         if (!await db.VpnPolicies.AnyAsync()) db.VpnPolicies.Add(new VpnPolicy());
+        // One-time product change: trials last one day. Later administrator edits stay authoritative.
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS AppMigrations (Id TEXT NOT NULL PRIMARY KEY);
+            UPDATE VpnPolicySettings SET TrialDays=1 WHERE Id=1 AND TrialDays=0 AND NOT EXISTS (SELECT 1 FROM AppMigrations WHERE Id='vpn-trial-1-day');
+            INSERT OR IGNORE INTO AppMigrations(Id) VALUES('vpn-trial-1-day');
+            """);
         if (!await db.Plans.AnyAsync(p => p.Code == VpnService.PlanCode))
             db.Plans.Add(new MembershipPlan { Code = VpnService.PlanCode, Name = "Iran VPN · 1 month", DurationDays = 30, MessageLimit = 1,
                 SendEnabled = false, ReceiveEnabled = false, PriceUsdCents = 400, IsPurchasable = true });

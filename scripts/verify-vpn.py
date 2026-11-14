@@ -183,7 +183,7 @@ def main():
             admin, _ = login('admin@ndorbit.co.nz'); user, user_id = login('vpn.buyer@gmail.com'); other, _ = login('second@example.com')
             h = home(user)
             assert h['account'] is None and h['trialAvailable'] and h['policy']['trialBytes'] == 10 * 1024 * 1024
-            assert h['policy']['monthlyBytes'] == 5 * 1024 ** 3 and h['policy']['ipLimit'] == 1
+            assert h['policy']['monthlyBytes'] == 5 * 1024 ** 3 and h['policy']['ipLimit'] == 1 and h['policy']['trialDays'] == 1
             assert h['plan']['priceUsdCents'] == 400 and h['servers'][0]['code'] == 'tehran'
             plan_id = h['plan']['id']
             assert all(p['code'] != 'vpn-iran' for p in call('/api/billing/catalog', token=user)[1]['plans'])
@@ -195,12 +195,14 @@ def main():
             email = call('/api/admin/vpn/accounts', token=admin)[1][0]['clientEmail']
             c = client(email)
             assert acc['status'] == 'trial' and acc['subscriptionUrl'] == sub_base + c['subId']
-            assert c['totalGB'] == 10 * 1024 * 1024 and c['limitIp'] == 1 and c['enable'] and c['expiryTime'] == 0
+            assert c['totalGB'] == 10 * 1024 * 1024 and c['limitIp'] == 1 and c['enable']
+            assert abs(c['expiryTime'] / 1000 - (time.time() + 86400)) < 120, 'trial lasts one day'
+            assert datetime.fromisoformat(acc['periodEnd'].rstrip('Z')) > utcnow() + timedelta(hours=23)
             assert c['flow'] == 'xtls-rprx-vision' and panel['clients'][email]['inbounds'] == [1, 2, 3]
             again = call('/api/vpn/request', {'serverCode': 'tehran'}, user)[1]; assert again['id'] == acc['id'] and len(panel['clients']) == 1
             use(email, 6 * 1024 * 1024, 5 * 1024 * 1024)
             a = home(user)['account']; assert a['status'] == 'trial_used' and a['usedDown'] == 6 * 1024 * 1024 and a['remainingBytes'] == 0
-            print('PASS: one-click trial provisioning on 3 inbounds, one-user limit, idempotent request, usage and trial depletion')
+            print('PASS: one-click 1-day trial provisioning on 3 inbounds, one-user limit, idempotent request, usage and trial depletion')
 
             sub_id = c['subId']
             order, session = buy(user, plan_id)

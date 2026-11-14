@@ -64,6 +64,31 @@ function Qr({ value, label }: { value: string; label: string }) {
   return src ? <img className="vpn-qr" src={src} width={240} height={240} alt={label} /> : <div className="vpn-qr" aria-busy="true" />;
 }
 
+function Validity({ account, lang }: { account: VpnAccount; lang: Lang }) {
+  const tr = (fa: string, en: string) => (lang === "fa" ? fa : en);
+  const startRaw = account.periodStart ?? account.createdAt;
+  const endRaw = account.paidUntil ?? account.periodEnd;
+  if (!endRaw) return null;
+  const start = utcDate(startRaw).getTime(), end = utcDate(endRaw).getTime(), now = Date.now();
+  const total = Math.max(1, end - start), left = Math.max(0, end - now);
+  const f = (v: number) => new Intl.NumberFormat(lang === "fa" ? "fa-IR" : "en").format(v);
+  const days = Math.floor(left / 86400000), hours = Math.floor((left % 86400000) / 3600000), minutes = Math.floor((left % 3600000) / 60000);
+  const remaining = left <= 0 ? tr("پایان یافته", "Ended")
+    : days > 0 ? `${f(days)} ${tr("روز", days === 1 ? "day" : "days")}${hours ? ` ${tr("و", "")} ${f(hours)} ${tr("ساعت", "h")}` : ""}`
+    : hours > 0 ? `${f(hours)} ${tr("ساعت", "h")} ${f(minutes)} ${tr("دقیقه", "min")}` : `${f(minutes)} ${tr("دقیقه", "min")}`;
+  const low = left < Math.min(3 * 86400000, total * 0.2);
+  return (
+    <div className="vpn-usage">
+      <div className="row between">
+        <strong>{tr("مدت اعتبار", "Validity")}</strong>
+        <span className={low ? "warn-text" : ""}>{tr("باقی‌مانده: ", "Remaining: ")}{remaining}</span>
+      </div>
+      <progress className={"vpn-validity" + (low ? " low" : "")} aria-label={tr("زمان باقی‌مانده", "Time remaining")} value={left} max={total} />
+      <p className="hint">{day(startRaw, lang)}{lang === "fa" ? " ← " : " → "}{day(endRaw, lang)}</p>
+    </div>
+  );
+}
+
 function Usage({ account, lang }: { account: VpnAccount; lang: Lang }) {
   const tr = (fa: string, en: string) => (lang === "fa" ? fa : en);
   const limit = Math.max(1, account.limitBytes);
@@ -209,11 +234,11 @@ export function VpnPanel({ lang, emailVerified }: { lang: Lang; emailVerified: b
       {!a ? (
         <section className="card vpn-intro">
           <p className="eyebrow">{tr("سرویس تازه", "NEW SERVICE")}</p>
-          <h2>{tr("فیلترشکن شخصی دروازه", "Darvazeh personal VPN")}</h2>
+          <h2>{tr("فیلترشکن با آیپی ایران", "VPN with an Iran IP")}</h2>
           <ul className="vpn-features">
             <li>{tr("یک کاربر، با یک پیوند اشتراک برای v2rayNG، v2rayTun، NPV Tunnel، Hiddify و برنامه‌های مشابه", "One user, one subscription link for v2rayNG, v2rayTun, NPV Tunnel, Hiddify and similar apps")}</li>
             <li>{bytes(p.monthlyBytes, lang)} {tr("حجم در هر", "of data every")} {new Intl.NumberFormat(lang === "fa" ? "fa-IR" : "en").format(p.periodDays)} {tr("روز", "days")}{priceLine && " · " + priceLine}</li>
-            <li>{home.trialAvailable ? tr(`${bytes(p.trialBytes, lang)} آزمایش رایگان، بدون پرداخت`, `${bytes(p.trialBytes, lang)} free trial, no payment needed`) : tr("دوره آزمایشی این ایمیل قبلاً استفاده شده؛ پس از دریافت، با پرداخت فعال می‌شود.", "This email has already used its trial; after you request it, pay to activate.")}</li>
+            <li>{home.trialAvailable ? (p.trialDays > 0 ? tr(`${bytes(p.trialBytes, lang)} آزمایش رایگان برای ${new Intl.NumberFormat("fa-IR").format(p.trialDays)} روز، بدون پرداخت`, `${bytes(p.trialBytes, lang)} free trial for ${p.trialDays} ${p.trialDays === 1 ? "day" : "days"}, no payment needed`) : tr(`${bytes(p.trialBytes, lang)} آزمایش رایگان، بدون پرداخت`, `${bytes(p.trialBytes, lang)} free trial, no payment needed`)) : tr("دوره آزمایشی این ایمیل قبلاً استفاده شده؛ پس از دریافت، با پرداخت فعال می‌شود.", "This email has already used its trial; after you request it, pay to activate.")}</li>
             <li>{tr("تمدید ماهانه روی همان پیکربندی؛ نیازی به دریافت دوباره نیست", "Monthly renewal keeps the same configuration — nothing to re-import")}</li>
           </ul>
           {!emailVerified ? (
@@ -250,6 +275,7 @@ export function VpnPanel({ lang, emailVerified }: { lang: Lang; emailVerified: b
             {a.status === "suspended" && (
               <p className="alert">{a.suspendedBy === "admin" ? tr("دسترسی توسط مدیر متوقف شده است.", "Access was suspended by an administrator.") + (a.suspendReason ? " " + a.suspendReason : "") : tr("شما VPN را موقتاً متوقف کرده‌اید.", "You paused your VPN.")}</p>
             )}
+            <Validity account={a} lang={lang} />
             <Usage account={a} lang={lang} />
             <div className="vpn-dates">
               {a.paidUntil && <span>{tr("اعتبار تا ", "Paid until ")}<strong>{day(a.paidUntil, lang)}</strong></span>}

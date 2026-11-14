@@ -53,8 +53,8 @@ const pages: Record<Screen, [string, string, string, string, string]> = {
     "plan",
   ],
   vpn: [
-    "فیلترشکن (VPN)",
-    "VPN",
+    "فیلترشکن با آیپی ایران",
+    "VPN with an Iran IP",
     "پیکربندی شخصی، کد QR، مصرف و تمدید ماهانه.",
     "Your personal configuration, QR code, usage and monthly renewal.",
     "vpn",
