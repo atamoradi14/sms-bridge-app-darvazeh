@@ -46,8 +46,8 @@ const pages: Record<Screen, [string, string, string, string, string]> = {
     "phone",
   ],
   membership: [
-    "اشتراک و پرداخت‌ها",
-    "Plan & payments",
+    "اشتراک پیامک‌رسان",
+    "SMS plan & payments",
     "ظرفیت باقی‌مانده، انتخاب طرح و سابقه پرداخت.",
     "Your allowance, plan options and payment history.",
     "plan",
@@ -60,8 +60,8 @@ const pages: Record<Screen, [string, string, string, string, string]> = {
     "vpn",
   ],
   "admin-vpn": [
-    "فروش VPN",
-    "VPN service",
+    "مدیریت فیلترشکن",
+    "VPN management",
     "قیمت، حجم آزمایشی و ماهانه، سرورها و مشترکان VPN.",
     "Pricing, trial and monthly data, servers and VPN subscribers.",
     "vpn",
@@ -88,8 +88,8 @@ const pages: Record<Screen, [string, string, string, string, string]> = {
     "people",
   ],
   "admin-plans": [
-    "طرح‌ها و قیمت‌ها",
-    "Plans & pricing",
+    "طرح‌های پیامک‌رسان",
+    "SMS plans & pricing",
     "مدت، ظرفیت و قیمت طرح‌های اشتراک.",
     "Set membership periods, allowances and prices.",
     "plan",

@@ -137,26 +137,34 @@ export function WorkspaceShell({
           items: ["admin", "admin-users", "admin-activity"],
         },
         {
-          label: tr("اشتراک و درآمد", "COMMERCE"),
-          items: ["admin-plans", "admin-vpn", "admin-payments", "admin-wallet"],
+          label: tr("سرویس پیامک‌رسان", "SMS FORWARDER"),
+          items: ["admin-plans", "admin-delivery"],
+        },
+        {
+          label: tr("سرویس فیلترشکن", "VPN SERVICE"),
+          items: ["admin-vpn"],
+        },
+        {
+          label: tr("پرداخت‌ها", "PAYMENTS"),
+          items: ["admin-payments", "admin-wallet"],
         },
         {
           label: tr("سامانه", "SYSTEM"),
-          items: ["admin-delivery", "admin-security"],
+          items: ["admin-security"],
         },
       ]
     : [
         {
-          label: tr("فضای شما", "WORKSPACE"),
-          items: ["overview", "inbox", "send", "device"],
+          label: tr("سرویس پیامک‌رسان", "SMS FORWARDER"),
+          items: ["overview", "inbox", "send", "device", "membership"],
         },
         {
-          label: tr("سرویس‌ها", "SERVICES"),
+          label: tr("سرویس فیلترشکن", "VPN SERVICE"),
           items: ["vpn"],
         },
         {
           label: tr("حساب شما", "YOUR ACCOUNT"),
-          items: ["membership", "settings"],
+          items: ["settings"],
         },
       ];
   function go(next: Screen) {

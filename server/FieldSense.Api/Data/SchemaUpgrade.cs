@@ -144,10 +144,12 @@ public static class SchemaUpgrade
             CREATE TABLE IF NOT EXISTS AppMigrations (Id TEXT NOT NULL PRIMARY KEY);
             UPDATE VpnPolicySettings SET TrialDays=1 WHERE Id=1 AND TrialDays=0 AND NOT EXISTS (SELECT 1 FROM AppMigrations WHERE Id='vpn-trial-1-day');
             INSERT OR IGNORE INTO AppMigrations(Id) VALUES('vpn-trial-1-day');
+            UPDATE Plans SET PriceToman=1000000 WHERE Code='vpn-iran' AND PriceToman IS NULL AND NOT EXISTS (SELECT 1 FROM AppMigrations WHERE Id='vpn-toman-price');
+            INSERT OR IGNORE INTO AppMigrations(Id) VALUES('vpn-toman-price');
             """);
         if (!await db.Plans.AnyAsync(p => p.Code == VpnService.PlanCode))
             db.Plans.Add(new MembershipPlan { Code = VpnService.PlanCode, Name = "Iran VPN · 1 month", DurationDays = 30, MessageLimit = 1,
-                SendEnabled = false, ReceiveEnabled = false, PriceUsdCents = 400, IsPurchasable = true });
+                SendEnabled = false, ReceiveEnabled = false, PriceUsdCents = 400, PriceToman = 1_000_000, IsPurchasable = true });
         await db.SaveChangesAsync();
         await AddColumn("Subscriptions", "UsedEmailForwards", "INTEGER NOT NULL DEFAULT 0");
         await AddColumn("Messages", "EmailForwardStatus", "TEXT NOT NULL DEFAULT 'not_requested'");

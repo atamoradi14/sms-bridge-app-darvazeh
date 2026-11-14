@@ -18,7 +18,7 @@ public record VpnLimitDto(long? MonthlyBytes, long? CurrentBytes);
 
 /// <summary>Member VPN: request a configuration, see usage, pause/resume and replace the link. Payment uses /api/billing/checkout with the returned plan id.</summary>
 [ApiController, Authorize, Route("api/vpn")]
-public class VpnController(VpnService vpn, AppDbContext db, IOptions<VpnSettings> settings, IOptions<BillingSettings> billing, IWebHostEnvironment environment) : ControllerBase
+public class VpnController(VpnService vpn, AppDbContext db, IOptions<VpnSettings> settings, IOptions<BillingSettings> billing, IWebHostEnvironment environment, PaymentWalletService wallet) : ControllerBase
 {
     private Guid UserId => Guid.Parse(User.FindFirstValue("sub")!);
     private ObjectResult Fail(VpnException e) => StatusCode(e.Status, new { error = e.Message, code = e.Code });
@@ -41,7 +41,7 @@ public class VpnController(VpnService vpn, AppDbContext db, IOptions<VpnSettings
             servers = settings.Value.Available.Select(s => new { s.Code, s.Name, nameFa = s.NameFa == "" ? s.Name : s.NameFa }),
             trialAvailable = !trialUsed && policy.TrialBytes > 0,
             stripeAvailable = billing.Value.Configured,
-            tomanAvailable = billing.Value.EzpayConfiguredFor(environment.IsDevelopment()),
+            tomanAvailable = billing.Value.EzpayConfiguredFor(environment.IsDevelopment()) && await wallet.Offered(),
             account = client == null ? null : vpn.View(client, policy, user.SuspendedAt != null),
             orders = await db.PaymentOrders.AsNoTracking().Where(p => p.UserId == UserId && p.Product == "vpn")
                 .OrderByDescending(p => p.CreatedAt).Take(50).Select(p => new { p.Id, p.PlanName, p.DurationDays, p.Currency, p.AmountMinor,

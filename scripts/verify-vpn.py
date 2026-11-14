@@ -184,12 +184,12 @@ def main():
             h = home(user)
             assert h['account'] is None and h['trialAvailable'] and h['policy']['trialBytes'] == 10 * 1024 * 1024
             assert h['policy']['monthlyBytes'] == 5 * 1024 ** 3 and h['policy']['ipLimit'] == 1 and h['policy']['trialDays'] == 1
-            assert h['plan']['priceUsdCents'] == 400 and h['servers'][0]['code'] == 'tehran'
+            assert h['plan']['priceUsdCents'] == 400 and h['plan']['priceToman'] == 1000000 and h['servers'][0]['code'] == 'tehran'
             plan_id = h['plan']['id']
             assert all(p['code'] != 'vpn-iran' for p in call('/api/billing/catalog', token=user)[1]['plans'])
             assert all(p['code'] != 'vpn-iran' for p in call('/api/admin/plans', token=admin)[1])
             assert call('/api/billing/checkout', {'planId': plan_id, 'currency': 'USD', 'requestKey': str(uuid.uuid4())}, user)[1]['code'] == 'vpn_request_required'
-            print('PASS: VPN catalog, 10 MB trial / 5 GB / USD 4 defaults, hidden from SMS plans, pay-after-request guard')
+            print('PASS: VPN catalog, 10 MB trial / 5 GB / USD 4 / 1,000,000 toman defaults, hidden from SMS plans, pay-after-request guard')
 
             status, acc = call('/api/vpn/request', {'serverCode': 'tehran'}, user); assert status == 200, acc
             email = call('/api/admin/vpn/accounts', token=admin)[1][0]['clientEmail']

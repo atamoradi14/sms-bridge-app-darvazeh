@@ -1227,6 +1227,7 @@
 .workspace .vpn-usage { display: grid; gap: .6rem; margin: .5rem 0; }
 .workspace .vpn-usage progress { width: 100%; }
 .workspace .vpn-validity.low { accent-color: #b4462f; }
+.workspace .vpn-expiry { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .3rem 1rem; padding: .65rem .85rem; border-radius: 12px; background: var(--surface-muted, rgba(0,0,0,.04)); margin: .3rem 0 .6rem; }
 .workspace .vpn-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .6rem; }
 .workspace .vpn-stats > div { display: grid; gap: .15rem; padding: .6rem .75rem; border-radius: 12px; background: var(--surface-muted, rgba(0,0,0,.04)); }
 .workspace .vpn-stats small { opacity: .7; }

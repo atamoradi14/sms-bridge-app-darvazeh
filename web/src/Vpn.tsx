@@ -64,6 +64,19 @@ function Qr({ value, label }: { value: string; label: string }) {
   return src ? <img className="vpn-qr" src={src} width={240} height={240} alt={label} /> : <div className="vpn-qr" aria-busy="true" />;
 }
 
+function expiryOf(a: VpnAccount) { return a.paidUntil ?? a.periodEnd ?? null; }
+function Expiry({ account, lang }: { account: VpnAccount; lang: Lang }) {
+  const tr = (fa: string, en: string) => (lang === "fa" ? fa : en);
+  const end = expiryOf(account);
+  const past = !!end && utcDate(end).getTime() <= Date.now();
+  return (
+    <p className="vpn-expiry">
+      <span>{past ? tr("منقضی شده در", "Expired on") : tr("تاریخ انقضای پیکربندی", "Configuration expires")}</span>
+      <strong className={past ? "warn-text" : ""}>{end ? when(end, lang) : tr("بدون تاریخ انقضا (تا پایان حجم)", "No expiry date (until data runs out)")}</strong>
+    </p>
+  );
+}
+
 function Validity({ account, lang }: { account: VpnAccount; lang: Lang }) {
   const tr = (fa: string, en: string) => (lang === "fa" ? fa : en);
   const startRaw = account.periodStart ?? account.createdAt;
@@ -275,11 +288,11 @@ export function VpnPanel({ lang, emailVerified }: { lang: Lang; emailVerified: b
             {a.status === "suspended" && (
               <p className="alert">{a.suspendedBy === "admin" ? tr("دسترسی توسط مدیر متوقف شده است.", "Access was suspended by an administrator.") + (a.suspendReason ? " " + a.suspendReason : "") : tr("شما VPN را موقتاً متوقف کرده‌اید.", "You paused your VPN.")}</p>
             )}
+            <Expiry account={a} lang={lang} />
             <Validity account={a} lang={lang} />
             <Usage account={a} lang={lang} />
             <div className="vpn-dates">
-              {a.paidUntil && <span>{tr("اعتبار تا ", "Paid until ")}<strong>{day(a.paidUntil, lang)}</strong></span>}
-              {a.periodEnd && <span>{tr("پایان دوره حجمی: ", "Data period ends: ")}<strong>{day(a.periodEnd, lang)}</strong></span>}
+              {a.periodEnd && a.paidUntil && a.periodEnd !== a.paidUntil && <span>{tr("پایان دوره حجمی: ", "Data period ends: ")}<strong>{day(a.periodEnd, lang)}</strong></span>}
               <span>{tr("به‌روزرسانی: ", "Updated: ")}{when(a.syncedAt, lang)}</span>
             </div>
             <div className="row">
@@ -485,7 +498,7 @@ export function VpnAdmin({ lang }: { lang: Lang }) {
           <table className="vpn-table">
             <thead><tr>
               <th>{tr("کاربر", "Member")}</th><th>{tr("وضعیت", "Status")}</th><th>{tr("مصرف", "Usage")}</th>
-              <th>{tr("اعتبار", "Paid until")}</th><th>{tr("اتصال", "Connection")}</th><th>{tr("اقدام", "Actions")}</th>
+              <th>{tr("انقضا", "Expires")}</th><th>{tr("اتصال", "Connection")}</th><th>{tr("اقدام", "Actions")}</th>
             </tr></thead>
             <tbody>
               {visible.map(({ email, clientEmail, account: a }) => {
@@ -495,7 +508,7 @@ export function VpnAdmin({ lang }: { lang: Lang }) {
                     <td><strong dir="ltr">{email}</strong><small dir="ltr" className="muted">{clientEmail} · {a.serverCode}</small>{a.lastError && <small className="warn-text" title={a.lastError}>{tr("خطای همگام‌سازی", "Sync error")}: {a.lastError.slice(0, 80)}</small>}</td>
                     <td><span className={"badge " + tone}>{label}</span>{a.pending && <small className="muted">{tr("در انتظار اعمال", "pending write")}</small>}</td>
                     <td>{bytes(a.usedTotal, lang)} / {bytes(a.limitBytes, lang)}<small className="muted">↓{bytes(a.usedDown, lang)} ↑{bytes(a.usedUp, lang)}{a.limitOverrideBytes ? ` · ${tr("سفارشی", "custom")} ${bytes(a.limitOverrideBytes, lang)}` : ""}</small></td>
-                    <td>{day(a.paidUntil, lang)}{a.periodEnd && <small className="muted">{tr("دوره تا ", "period to ")}{day(a.periodEnd, lang)}</small>}</td>
+                    <td className={expiryOf(a) && utcDate(expiryOf(a)!).getTime() <= Date.now() ? "warn-text" : ""}>{expiryOf(a) ? when(expiryOf(a), lang) : tr("بدون انقضا", "No expiry")}<small className="muted">{a.paidUntil ? tr("پرداخت‌شده", "paid") : tr("آزمایشی", "trial")}{a.paidUntil && a.periodEnd && a.periodEnd !== a.paidUntil ? ` · ${tr("دوره حجمی تا ", "data period to ")}${day(a.periodEnd, lang)}` : ""}</small></td>
                     <td><span className={"vpn-dot " + (a.online ? "on" : "")} aria-hidden="true" />{a.online ? tr("متصل", "Online") : tr("قطع", "Offline")}<small className={a.activeIps > a.ipLimit ? "warn-text" : "muted"}>{n(a.activeIps)}/{n(a.ipLimit)} {tr("کاربر", "users")}</small></td>
                     <td className="vpn-actions">
                       {a.status === "revoked" ? "—" : <>
