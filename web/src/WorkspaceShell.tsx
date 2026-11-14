@@ -146,7 +146,7 @@ export function WorkspaceShell({
         },
         {
           label: tr("پرداخت‌ها", "PAYMENTS"),
-          items: ["admin-payments", "admin-wallet"],
+          items: ["admin-payments", "admin-promos", "admin-wallet"],
         },
         {
           label: tr("سامانه", "SYSTEM"),

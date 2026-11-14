@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AccountActivity> Activities => Set<AccountActivity>();
     public DbSet<PaymentOrder> PaymentOrders => Set<PaymentOrder>();
     public DbSet<PaymentEventReceipt> PaymentEvents => Set<PaymentEventReceipt>();
+    public DbSet<PromoCode> PromoCodes => Set<PromoCode>();
 
     public DbSet<GoogleLoginFlow> GoogleLoginFlows => Set<GoogleLoginFlow>();
     public DbSet<EmailProviderCall> EmailProviderCalls => Set<EmailProviderCall>();
@@ -53,6 +54,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<PaymentOrder>().HasIndex(p => new { p.UserId, p.RequestKey }).IsUnique();
         modelBuilder.Entity<PaymentOrder>().HasIndex(p => p.ProviderSessionId).IsUnique();
         modelBuilder.Entity<PaymentOrder>().HasIndex(p => p.ProviderPaymentId).IsUnique();
+        modelBuilder.Entity<PaymentOrder>().HasIndex(p => p.PromoCodeId);
+        modelBuilder.Entity<PromoCode>().HasIndex(p => p.Code).IsUnique();
         modelBuilder.Entity<Subscription>().HasIndex(s => s.PaymentOrderId).IsUnique();
         modelBuilder.Entity<Subscription>().HasIndex(s => s.UserId).IsUnique().HasFilter("IsCurrent = 1");
         modelBuilder.Entity<UsageEntry>().HasIndex(u => u.MessageId).IsUnique();

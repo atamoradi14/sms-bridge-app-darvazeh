@@ -45,7 +45,7 @@ public class VpnController(VpnService vpn, AppDbContext db, IOptions<VpnSettings
             account = client == null ? null : vpn.View(client, policy, user.SuspendedAt != null),
             orders = await db.PaymentOrders.AsNoTracking().Where(p => p.UserId == UserId && p.Product == "vpn")
                 .OrderByDescending(p => p.CreatedAt).Take(50).Select(p => new { p.Id, p.PlanName, p.DurationDays, p.Currency, p.AmountMinor,
-                    p.RefundedMinor, p.Status, p.CreatedAt, p.PaidAt, p.FulfilledAt }).ToListAsync()
+                    p.RefundedMinor, p.Status, p.CreatedAt, p.PaidAt, p.FulfilledAt, p.PromoCode, p.DiscountMinor }).ToListAsync()
         });
     }
 

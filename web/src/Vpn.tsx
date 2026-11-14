@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import QRCode from "qrcode";
-import { api, vpnApi, RequestError, type VpnAccount, type VpnAdminOverview, type VpnAdminRow, type VpnHome, type VpnServerStatus } from "./api";
+import { api, vpnApi, RequestError, type PromoQuote, type VpnAccount, type VpnAdminOverview, type VpnAdminRow, type VpnHome, type VpnServerStatus } from "./api";
+import { PromoField, PromoPriceText, promoError } from "./Promo";
 import { utcDate } from "./format";
 import type { Lang } from "./i18n";
 import { Icon } from "./WorkspaceShell";
@@ -38,6 +39,8 @@ export function vpnStatusLabel(status: VpnAccount["status"], lang: Lang): [strin
 }
 
 function vpnError(error: unknown, lang: Lang) {
+  const promoText = promoError(error, lang);
+  if (promoText) return promoText;
   const e = error as RequestError;
   const m: Record<string, [string, string]> = {
     vpn_closed: ["فروش VPN در حال حاضر بسته است.", "VPN sign-ups are currently closed."],
@@ -150,7 +153,8 @@ export function VpnPanel({ lang, emailVerified }: { lang: Lang; emailVerified: b
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
   const [tomanOrder, setTomanOrder] = useState<{ id: string; url: string | null; alternate?: string | null } | null>(null);
-  const requestKey = useRef<{ currency: string; key: string } | null>(null);
+  const requestKey = useRef<{ currency: string; promo: string | null; key: string } | null>(null);
+  const [promo, setPromo] = useState<PromoQuote | null>(null);
   // Ezpay works only from Iranian IP addresses; the server checks again before creating a link.
   const tomanRegion = useRef<boolean | null>(null);
   useEffect(() => {
@@ -208,22 +212,37 @@ export function VpnPanel({ lang, emailVerified }: { lang: Lang; emailVerified: b
     finally { setBusy(false); }
   }
 
+  // The promo price of the VPN plan for one currency; null when no code is applied or it doesn't cover that currency.
+  function promoLine(currency: "USD" | "IRT") {
+    const q = promo?.plans.find((x) => x.planId === home?.plan?.id);
+    return (currency === "USD" ? q?.usd : q?.toman) ?? null;
+  }
+
   async function pay(currency: "USD" | "IRT") {
     if (!home?.plan) return;
-    if (!requestKey.current || requestKey.current.currency !== currency) requestKey.current = { currency, key: crypto.randomUUID() };
+    const line = promoLine(currency);
+    const promoCode = line ? promo!.code : null;
+    const free = line?.final === 0;
+    if (!requestKey.current || requestKey.current.currency !== currency || requestKey.current.promo !== promoCode)
+      requestKey.current = { currency, promo: promoCode, key: crypto.randomUUID() };
     let win: Window | null = null;
-    if (currency === "IRT" && tomanRegion.current === false) {
+    if (currency === "IRT" && !free && tomanRegion.current === false) {
       setNotice("");
       setError(vpnError({ code: "toman_requires_iran_ip" }, lang));
       return;
     }
-    if (currency === "IRT") {
+    if (currency === "IRT" && !free) {
       win = window.open("", "_blank");
       if (win) win.document.body.textContent = tr("در حال باز کردن صفحهٔ پرداخت… فیلترشکن را خاموش کنید.", "Opening the payment page… Turn off your VPN.");
     }
     setBusy(true); setError(""); setNotice("");
     try {
-      const c = await api.checkout(home.plan.id, currency, requestKey.current.key);
+      const c = await api.checkout(home.plan.id, currency, requestKey.current.key, promoCode);
+      if (c.free) {
+        win?.close(); requestKey.current = null; setPromo(null); await load(true);
+        setNotice(tr("کد تخفیف کل مبلغ را پوشش داد؛ VPN شما بدون پرداخت تمدید شد.", "Your promo code covered the full price — your VPN is renewed, no payment needed."));
+        return;
+      }
       if (c.status.startsWith("paid_")) { win?.close(); requestKey.current = null; await load(true); setNotice(tr("این پرداخت قبلاً تأیید شده است.", "This payment was already confirmed.")); return; }
       if (!c.checkoutUrl) { win?.close(); throw new Error(); }
       const url = new URL(c.checkoutUrl);
@@ -369,20 +388,29 @@ export function VpnPanel({ lang, emailVerified }: { lang: Lang; emailVerified: b
                 </div>
               </div>
             )}
+            {canPay && <PromoField product="vpn" lang={lang} value={promo} onChange={(q) => { setPromo(q); setError(""); }} disabled={busy} />}
             <div className="row">
-              <button className="btn" disabled={busy || !canPay || !home.stripeAvailable || !plan?.priceUsdCents} onClick={() => pay("USD")}>
-                {tr("پرداخت دلاری با کارت", "Pay in USD by card")}{plan?.priceUsdCents ? " · " + usd(plan.priceUsdCents, lang) : ""}
+              <button className="btn" disabled={busy || !canPay || (!home.stripeAvailable && promoLine("USD")?.final !== 0) || !plan?.priceUsdCents} onClick={() => pay("USD")}>
+                {promoLine("USD")?.final === 0 ? tr("تمدید رایگان", "Renew for free") : tr("پرداخت دلاری با کارت", "Pay in USD by card")}
+                {plan?.priceUsdCents ? <> · <PromoPriceText price={promoLine("USD")} original={plan.priceUsdCents} currency="USD" lang={lang} /></> : ""}
               </button>
-              <button className="btn secondary" disabled={busy || !canPay || !home.tomanAvailable || !plan?.priceToman} onClick={() => pay("IRT")}>
-                {home.tomanAvailable && plan?.priceToman ? tr("پرداخت تومانی", "Pay in toman") + " · " + toman(plan.priceToman, lang) : tr("پرداخت تومانی — به‌زودی", "Toman checkout — coming later")}
+              <button className="btn secondary" disabled={busy || !canPay || (!home.tomanAvailable && promoLine("IRT")?.final !== 0) || !plan?.priceToman} onClick={() => pay("IRT")}>
+                {promoLine("IRT")?.final === 0
+                  ? <>{tr("تمدید رایگان", "Renew for free")} · <PromoPriceText price={promoLine("IRT")} original={plan!.priceToman!} currency="IRT" lang={lang} /></>
+                  : home.tomanAvailable && plan?.priceToman
+                    ? <>{tr("پرداخت تومانی", "Pay in toman")} · <PromoPriceText price={promoLine("IRT")} original={plan.priceToman} currency="IRT" lang={lang} /></>
+                    : tr("پرداخت تومانی — به‌زودی", "Toman checkout — coming later")}
               </button>
             </div>
+            {promo && ((!!plan?.priceUsdCents && !promoLine("USD")) || (!!plan?.priceToman && !promoLine("IRT"))) && (
+              <p className="hint">{tr("کد تخفیف فقط روی روش پرداختی که قیمتش خط خورده اعمال می‌شود.", "The promo code applies only to the payment option shown with a struck-through price.")}</p>
+            )}
             {!home.stripeAvailable && <p className="hint">{tr("پرداخت دلاری هنوز متصل نشده است.", "USD checkout isn’t connected yet.")}</p>}
             {home.orders.length > 0 && (
               <div className="payment-history">
                 {home.orders.map((o) => (
                   <article className="payment-row" key={o.id}>
-                    <div><strong>{o.planName}</strong><span className="muted small">{when(o.createdAt, lang)}</span></div>
+                    <div><strong>{o.planName}</strong><span className="muted small">{when(o.createdAt, lang)}{o.promoCode ? " · " + tr("کد تخفیف ", "promo ") + o.promoCode : ""}</span></div>
                     <div><strong>{o.currency === "USD" ? usd(o.amountMinor, lang) : toman(o.amountMinor, lang)}</strong><span className="badge">{({ paid_active: tr("پرداخت‌شده", "Paid"), checkout_open: tr("در انتظار پرداخت", "Awaiting payment"), created: tr("آغاز پرداخت", "Started"), failed: tr("ناموفق", "Failed"), expired: tr("منقضی", "Expired"), refunded: tr("بازپرداخت", "Refunded"), paid_queued: tr("در حال فعال‌سازی", "Activating") } as Record<string, string>)[o.status] ?? o.status}</span></div>
                   </article>
                 ))}

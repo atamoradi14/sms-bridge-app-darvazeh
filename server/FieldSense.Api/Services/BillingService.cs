@@ -7,7 +7,8 @@ using Microsoft.Extensions.Options;
 namespace FieldSense.Api.Services;
 
 public class BillingService(AppDbContext db, MembershipService membership, IStripeGateway stripe,
-    EzpayBroker ezpay, PaymentWalletService wallet, IOptions<BillingSettings> options, IWebHostEnvironment environment, VpnService vpn)
+    EzpayBroker ezpay, PaymentWalletService wallet, IOptions<BillingSettings> options, IWebHostEnvironment environment, VpnService vpn,
+    PromoCodeService promos)
 {
     private readonly BillingSettings settings = options.Value;
     private static string Text(JsonElement o, string key) => o.ValueKind == JsonValueKind.Object &&
@@ -27,6 +28,15 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
         if (!settings.Configured) throw new BillingException("payment_not_configured", "پرداخت دلاری هنوز فعال نشده است.", 503);
     }
     private bool EzpayConfigured => settings.EzpayConfiguredFor(environment.IsDevelopment());
+    /// <summary>The payment method can take this order: USD needs Stripe; toman needs Ezpay, a receiving wallet and a buyer IP in Iran.</summary>
+    private async Task ProviderReady(string currency, bool tomanRegionAllowed)
+    {
+        if (currency == "USD") { Ready(); return; }
+        EzpayReady();
+        // No order is recorded while no receiving wallet is offered; Ezpay itself is checked again when the link is created.
+        if (!await wallet.Offered()) throw new BillingException("payment_method_unavailable", "پرداخت تومانی پس از اتصال کیف پول فعال می‌شود.", 503);
+        if (!tomanRegionAllowed) throw new BillingException("toman_requires_iran_ip", PaymentRegion.NotIranMessage, 403);
+    }
     private void EzpayReady()
     {
         if (!EzpayConfigured) throw new BillingException("payment_method_unavailable", "پرداخت تومانی پس از اتصال کیف پول فعال می‌شود.", 503);
@@ -47,24 +57,20 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
         };
     }
 
-    public async Task<PaymentOrder> Checkout(Guid userId, Guid planId, string currency, string requestKey)
+    /// <param name="promoCode">Optional promo code; the discount is computed here from the plan price.</param>
+    /// <param name="tomanRegionAllowed">Whether the buyer's IP is in Iran (Ezpay accepts only Iranian IPs). Not needed when a code makes the order free.</param>
+    public async Task<PaymentOrder> Checkout(Guid userId, Guid planId, string currency, string requestKey, string? promoCode = null, bool tomanRegionAllowed = true)
     {
-        if (currency == "IRT")
-        {
-            EzpayReady();
-            // No order is recorded while no receiving wallet is offered; Ezpay itself is checked again when the link is created.
-            if (!await wallet.Offered()) throw new BillingException("payment_method_unavailable", "پرداخت تومانی پس از اتصال کیف پول فعال می‌شود.", 503);
-        }
-        else if (currency == "USD") Ready();
-        else throw new BillingException("payment_method_unavailable", "این روش پرداخت پشتیبانی نمی‌شود.", 400);
+        if (currency is not ("IRT" or "USD")) throw new BillingException("payment_method_unavailable", "این روش پرداخت پشتیبانی نمی‌شود.", 400);
         if (!Guid.TryParse(requestKey, out _)) throw new BillingException("invalid_request", "درخواست پرداخت معتبر نیست.");
+        var code = PromoCodeService.Normalize(promoCode);
         PaymentOrder order;
         await using (var transaction = await db.Database.BeginTransactionAsync())
         {
             var existing = await db.PaymentOrders.SingleOrDefaultAsync(p => p.UserId == userId && p.RequestKey == requestKey);
             if (existing != null)
             {
-                Check(existing.PlanId == planId && existing.Currency == currency);
+                Check(existing.PlanId == planId && existing.Currency == currency && existing.PromoCode == code);
                 order = existing;
             }
             else
@@ -75,12 +81,18 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
                     throw new BillingException("checkout_rate_limit", "درخواست‌های پرداخت زیادی باز است. کمی بعد تلاش کنید.", 429);
                 var plan = await db.Plans.SingleOrDefaultAsync(p => p.Id == planId && p.IsActive && p.IsPurchasable && p.Code != "trial");
                 if (plan == null) throw new BillingException("plan_not_for_sale", "این طرح برای فروش نیست.");
-                if (plan.Code == VpnService.PlanCode && (await vpn.Current(userId) == null || !(await vpn.Policy()).Enabled))
+                var product = plan.Code == VpnService.PlanCode ? "vpn" : "sms";
+                if (product == "vpn" && (await vpn.Current(userId) == null || !(await vpn.Policy()).Enabled))
                     throw new BillingException("vpn_request_required", "ابتدا پیکربندی VPN خود را دریافت کنید.", 409);
                 if (currency == "USD" && plan.PriceUsdCents is not (>= 50 and <= 99999999))
                     throw new BillingException("plan_not_for_sale", "قیمت دلاری این طرح هنوز مشخص نشده است.");
                 if (currency == "IRT" && plan.PriceToman is not (>= MinToman and <= MaxToman))
                     throw new BillingException("plan_not_for_sale", "قیمت تومانی این طرح هنوز مشخص نشده است.");
+                var amount = currency == "IRT" ? plan.PriceToman!.Value : plan.PriceUsdCents!.Value;
+                var promo = code == null ? null : await promos.Usable(code, userId, product);
+                var price = promo == null ? new PromoCodeService.Price(amount, 0, amount) : PromoCodeService.Apply(promo, currency, amount);
+                var free = price.Final == 0;
+                if (!free) await ProviderReady(currency, tomanRegionAllowed);
                 var origin = settings.PortalOrigin.TrimEnd('/');
                 if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) || uri.UserInfo != "" ||
                     uri.AbsolutePath != "/" || uri.Query != "" || uri.Fragment != "" ||
@@ -89,14 +101,29 @@ public class BillingService(AppDbContext db, MembershipService membership, IStri
                 order = new PaymentOrder { UserId = userId, PlanId = plan.Id, PlanName = plan.Name,
                     DurationDays = plan.DurationDays, MessageLimit = plan.MessageLimit, EmailForwardLimit = plan.EmailForwardLimit,
                     SendEnabled = plan.SendEnabled, ReceiveEnabled = plan.ReceiveEnabled,
-                    Provider = currency == "IRT" ? "ezpay" : "stripe", Currency = currency,
-                    Product = plan.Code == VpnService.PlanCode ? "vpn" : "sms",
-                    AmountMinor = currency == "IRT" ? plan.PriceToman!.Value : plan.PriceUsdCents!.Value, RequestKey = requestKey, ReturnOrigin = origin };
+                    Provider = free ? "promo" : currency == "IRT" ? "ezpay" : "stripe", Currency = currency, Product = product,
+                    AmountMinor = price.Final, OriginalAmountMinor = price.Original, DiscountMinor = price.Discount,
+                    PromoCodeId = promo?.Id, PromoCode = promo?.Code, RequestKey = requestKey, ReturnOrigin = origin };
+                if (free)
+                {
+                    // Nothing to pay: the code covers the whole price, so the period is granted now.
+                    order.PaidAt = DateTime.UtcNow; order.Status = "paid_queued";
+                    membership.Log(userId, "payment_confirmed", $"{plan.Name} · promo {promo!.Code}");
+                }
                 db.PaymentOrders.Add(order);
                 await db.SaveChangesAsync();
+                if (free && product == "vpn") await vpn.ApplyPayments(userId);
             }
             await transaction.CommitAsync();
         }
+        if (order.Provider == "promo")
+        {
+            if (order.Product == "vpn") await vpn.TryPushUser(userId);
+            await membership.Current(userId);
+            return await db.PaymentOrders.AsNoTracking().SingleAsync(p => p.Id == order.Id);
+        }
+        if (order.Status is "created" or "checkout_open" && order.ProviderSessionId == null)
+            await ProviderReady(currency, tomanRegionAllowed);
         if (order.Status is not ("created" or "checkout_open")) return order;
         if (order.ProviderSessionId != null) return order;
         if (order.CreatedAt < DateTime.UtcNow.AddMinutes(-50))

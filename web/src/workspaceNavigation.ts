@@ -12,6 +12,7 @@ export type Screen =
   | "admin-users"
   | "admin-plans"
   | "admin-payments"
+  | "admin-promos"
   | "admin-wallet"
   | "admin-security"
   | "admin-delivery"
@@ -99,6 +100,13 @@ const pages: Record<Screen, [string, string, string, string, string]> = {
     "Payments",
     "سابقه پرداخت و وضعیت خرید کاربران.",
     "Customer payments and purchase status.",
+    "payment",
+  ],
+  "admin-promos": [
+    "کدهای تخفیف",
+    "Promo codes",
+    "ساخت و ویرایش کد تخفیف برای پیامک‌رسان و فیلترشکن.",
+    "Create and edit discount codes for the SMS forwarder and the VPN.",
     "payment",
   ],
   "admin-wallet": [

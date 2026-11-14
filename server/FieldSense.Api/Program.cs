@@ -34,6 +34,8 @@ builder.Services.AddRateLimiter(o=> {
         return ValueTask.CompletedTask;
     };
     o.AddPolicy("password-auth",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=60,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
+    // Promo code checks per signed-in member (and per IP as a fallback): enough to type a few codes, too few to guess them.
+    o.AddPolicy("promo",context=>RateLimitPartition.GetFixedWindowLimiter(context.User.FindFirst("sub")?.Value??context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=20,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
     o.AddPolicy("signup",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=10,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
 });
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
@@ -50,6 +52,7 @@ builder.Services.AddHttpClient<XuiClient>(c=>c.Timeout=TimeSpan.FromSeconds(20))
 builder.Services.AddScoped<VpnService>();
 builder.Services.AddHostedService<VpnWorker>();
 builder.Services.AddScoped<BillingService>();
+builder.Services.AddScoped<PromoCodeService>();
 builder.Services.AddHttpClient<IStripeGateway, StripeGateway>(client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient<EzpayBroker>(client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddScoped<PaymentWalletService>();
@@ -135,8 +138,9 @@ using (var scope = app.Services.CreateScope())
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors();
-app.UseRateLimiter();
+// After authentication so per-member limits (promo) can use the signed-in user; IP-based policies are unaffected.
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { ok = true, service = "darvazeh-api", brand = "دروازه" }));

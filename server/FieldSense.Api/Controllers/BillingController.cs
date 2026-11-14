@@ -3,42 +3,51 @@ using FieldSense.Api.Data;
 using FieldSense.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FieldSense.Api.Controllers;
 
-public record CheckoutDto(Guid PlanId, string Currency, string RequestKey);
+public record CheckoutDto(Guid PlanId, string Currency, string RequestKey, string? PromoCode = null);
+public record PromoQuoteDto(string Code, string Product);
 
 [ApiController]
 [Route("api/billing")]
-public class BillingController(BillingService billing, AppDbContext db, ILogger<BillingController> logger) : ControllerBase
+public class BillingController(BillingService billing, PromoCodeService promos, AppDbContext db, ILogger<BillingController> logger) : ControllerBase
 {
     private Guid UserId => Guid.Parse(User.FindFirstValue("sub")!);
     [Authorize, HttpGet("catalog")]
     public async Task<IActionResult> Catalog() => Ok(await billing.Catalog(UserId));
 
-    [Authorize, HttpPost("checkout")]
+    [Authorize, HttpPost("checkout"), EnableRateLimiting("promo")]
     public async Task<IActionResult> Checkout(CheckoutDto dto)
     {
         if(!await db.Users.AnyAsync(u=>u.Id==UserId && u.EmailVerifiedAt!=null))return StatusCode(403,new {code="email_verification_required",error="ابتدا ایمیل خود را تأیید کنید."});
         var currency = (dto.Currency ?? "").ToUpperInvariant();
+        // Ezpay works only from Iranian IP addresses: no link is created for a buyer abroad or behind a VPN.
+        // The service enforces it unless a promo code makes the order free.
+        var region = PaymentRegion.Of(Request);
         if (currency == "IRT")
-        {
-            // Ezpay works only from Iranian IP addresses: no link is created for a buyer abroad or behind a VPN.
-            var region = PaymentRegion.Of(Request);
             logger.LogInformation("event_type=toman_checkout_region country={Country} allowed={Allowed}", region.Country ?? "unknown", region.TomanAllowed);
-            if (!region.TomanAllowed)
-                return StatusCode(403, new { code = "toman_requires_iran_ip", error = PaymentRegion.NotIranMessage, country = region.Country });
-        }
         try
         {
-            var order = await billing.Checkout(UserId, dto.PlanId, currency, dto.RequestKey ?? "");
+            var order = await billing.Checkout(UserId, dto.PlanId, currency, dto.RequestKey ?? "", dto.PromoCode, region.TomanAllowed);
+            if (order.Provider == "promo") return Ok(new { order.Id, order.Status, CheckoutUrl = (string?)null, free = true });
             if (order.Provider != "ezpay") return Ok(new { order.Id, order.Status, order.CheckoutUrl });
             // Open Ezpay's card gateway first (where toman payments have succeeded); keep Ezpay's own link as the alternative.
             var card = PaymentRegion.CardGatewayLink(order.ProviderUniqueId);
             var primary = card ?? order.CheckoutUrl;
             return Ok(new { order.Id, order.Status, CheckoutUrl = primary, AlternateUrl = order.CheckoutUrl != primary ? order.CheckoutUrl : null });
         }
+        catch (BillingException error) { return StatusCode(error.Status, new { error = error.Message, code = error.Code }); }
+    }
+
+    /// <summary>Prices with a promo code for the product's plans ("sms" or "vpn"), shown before checkout. Rate limited against guessing.</summary>
+    [Authorize, HttpPost("promo"), EnableRateLimiting("promo")]
+    public async Task<IActionResult> PromoQuote(PromoQuoteDto dto)
+    {
+        if (dto.Product is not ("sms" or "vpn")) return BadRequest(new { code = "invalid_request", error = "درخواست معتبر نیست." });
+        try { return Ok(await promos.Quote(dto.Code, UserId, dto.Product)); }
         catch (BillingException error) { return StatusCode(error.Status, new { error = error.Message, code = error.Code }); }
     }
 
@@ -54,7 +63,7 @@ public class BillingController(BillingService billing, AppDbContext db, ILogger<
     public async Task<IActionResult> Orders() => Ok(await db.PaymentOrders.AsNoTracking().Where(p => p.UserId == UserId)
         .OrderByDescending(p => p.CreatedAt).Take(100).Select(p => new {
             p.Id, p.PlanName, p.DurationDays, p.MessageLimit, p.Currency, p.AmountMinor, p.RefundedMinor,
-            p.Status, p.CreatedAt, p.PaidAt, p.FulfilledAt }).ToListAsync());
+            p.Status, p.CreatedAt, p.PaidAt, p.FulfilledAt, p.PromoCode, p.DiscountMinor, p.OriginalAmountMinor }).ToListAsync());
 
     [Authorize, HttpPost("orders/{id:guid}/reconcile")]
     public async Task<IActionResult> Reconcile(Guid id)

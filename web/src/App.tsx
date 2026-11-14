@@ -14,6 +14,7 @@ import { GoogleLogin } from "./GoogleLogin";
 import { PasswordAccess, EmailDiagnostics } from "./PasswordAccess";
 import { Phones } from "./Phones";
 import { BillingPanel, PlanManager, AdminPayments } from "./Billing";
+import { AdminPromos } from "./Promo";
 import { PaymentWalletAdmin } from "./PaymentWallet";
 import { VpnPanel, VpnAdmin } from "./Vpn";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
@@ -1109,6 +1110,7 @@ export default function App() {
         </>
       )}
       {isAdmin && tab === "admin-payments" && <AdminPayments lang={lang} />}
+      {isAdmin && tab === "admin-promos" && <AdminPromos lang={lang} />}
       {isAdmin && tab === "admin-wallet" && <PaymentWalletAdmin lang={lang} />}
       {isAdmin && tab === "admin-vpn" && <VpnAdmin lang={lang} />}
       {isAdmin && tab === "admin-security" && (

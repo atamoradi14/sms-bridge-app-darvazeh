@@ -177,6 +177,36 @@ public class PaymentOrder
     public DateTime? ExpiresAt { get; set; }
     public DateTime? PaidAt { get; set; }
     public DateTime? FulfilledAt { get; set; }
+    /// <summary>Promo code applied at checkout: the plan price before the discount and the amount taken off (same currency as AmountMinor).</summary>
+    public Guid? PromoCodeId { get; set; }
+    public string? PromoCode { get; set; }
+    public long OriginalAmountMinor { get; set; }
+    public long DiscountMinor { get; set; }
+}
+
+/// <summary>A discount code an administrator creates. Uses are counted from payment orders, never stored as a counter.</summary>
+public class PromoCode
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    /// <summary>Upper-case letters, digits, '-' and '_'; compared case-insensitively by normalising to upper case.</summary>
+    public string Code { get; set; } = "";
+    public string Description { get; set; } = "";
+    /// <summary>"all", "sms" or "vpn".</summary>
+    public string Product { get; set; } = "all";
+    /// <summary>"percent" uses DiscountPercent; "fixed" uses AmountOffToman / AmountOffUsdCents for the matching currency.</summary>
+    public string DiscountType { get; set; } = "percent";
+    public int DiscountPercent { get; set; }
+    public long? AmountOffToman { get; set; }
+    public long? AmountOffUsdCents { get; set; }
+    /// <summary>Total uses across all members; null = unlimited.</summary>
+    public int? MaxUses { get; set; }
+    /// <summary>Uses per member; null = unlimited.</summary>
+    public int? MaxUsesPerUser { get; set; } = 1;
+    public DateTime? StartsAt { get; set; }
+    public DateTime? ExpiresAt { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
 
 public class PaymentEventReceipt

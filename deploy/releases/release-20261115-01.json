@@ -1,0 +1,21 @@
+{
+  "release": "release-20261115-01",
+  "verifiedAtUtc": "2026-11-14T22:27:00Z",
+  "change": "Promo codes for SMS plans and VPN renewals: admin create/edit (percent or fixed toman/USD off, service scope, total and per-member limits, start/expiry, active flag), server-side pricing at checkout, 100% codes activate without payment",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:2fd44f928767f36d0593cf4dab3edbe9c13dac815dd2a6815e945ac13e88c39c",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:b153e59efe27ef00de3b490017b4676f41ce3e58366dd560ce7cf9a52b05a507"
+  },
+  "productionDataPreserved": true,
+  "schemaChanges": ["PromoCodes table", "PaymentOrders.PromoCodeId, PromoCode, OriginalAmountMinor, DiscountMinor"],
+  "dataChanges": [],
+  "backups": ["fieldsense-20261114T222335Z.db (before)", "fieldsense-20261114T222652Z.db (after)"],
+  "verification": [
+    "scripts/verify-promo-codes.py, verify-ezpay-wallet.py, verify-billing.py, verify-vpn.py, verify-membership.py, verify-password-auth.py pass",
+    "admin form, SMS plan discount display and free VPN renewal checked in the browser against a local demo",
+    "both pods rolled out on ravand-worker-01; /health 200; no API errors in logs",
+    "live web bundle contains the promo code page; /api/billing/promo and /api/admin/promos answer 401 without sign-in",
+    "post-deploy backup: PromoCodes table and new PaymentOrders columns present, 6 users and 18 orders preserved, integrity ok"
+  ],
+  "remaining": ["restore VPN toman price to 1,000,000 after the test payment (still 1,000)", "first real purchase with a promo code"]
+}

@@ -112,7 +112,41 @@ export type PaymentOrder = {
   paidAt?: string;
   fulfilledAt?: string;
   email?: string;
+  promoCode?: string | null;
+  discountMinor?: number;
+  originalAmountMinor?: number;
 };
+export type PromoPrice = { original: number; discount: number; final: number };
+export type PromoQuote = {
+  code: string;
+  description: string;
+  discountType: "percent" | "fixed";
+  discountPercent: number;
+  expiresAt: string | null;
+  plans: { planId: string; usd: PromoPrice | null; toman: PromoPrice | null }[];
+};
+export type PromoCode = {
+  id: string;
+  code: string;
+  description: string;
+  product: "all" | "sms" | "vpn";
+  discountType: "percent" | "fixed";
+  discountPercent: number;
+  amountOffToman: number | null;
+  amountOffUsdCents: number | null;
+  maxUses: number | null;
+  maxUsesPerUser: number | null;
+  startsAt: string | null;
+  expiresAt: string | null;
+  isActive: boolean;
+  createdAt: string;
+  used: number;
+  holding: number;
+  discountToman: number;
+  discountUsdCents: number;
+  status: "active" | "inactive" | "expired" | "scheduled" | "used_up";
+};
+export type PromoCodeInput = Omit<PromoCode, "id" | "createdAt" | "used" | "holding" | "discountToman" | "discountUsdCents" | "status">;
 export type BillingCatalog = {
   plans: Plan[];
   stripeAvailable: boolean;
@@ -267,12 +301,17 @@ export const api = {
   paymentRegion: () => req<{ country: string | null; tomanAllowed: boolean }>("/api/billing/region"),
   paymentOrders: () => req<PaymentOrder[]>("/api/billing/orders"),
   adminPayments: () => req<PaymentOrder[]>("/api/admin/payments"),
-  checkout: (planId: string, currency: string, requestKey: string) =>
-    send<{ id: string; status: string; checkoutUrl?: string; alternateUrl?: string | null }>(
+  checkout: (planId: string, currency: string, requestKey: string, promoCode?: string | null) =>
+    send<{ id: string; status: string; checkoutUrl?: string | null; alternateUrl?: string | null; free?: boolean }>(
       "/api/billing/checkout",
       "POST",
-      { planId, currency, requestKey },
+      { planId, currency, requestKey, promoCode: promoCode || null },
     ),
+  promoQuote: (code: string, product: "sms" | "vpn") =>
+    send<PromoQuote>("/api/billing/promo", "POST", { code, product }),
+  adminPromos: () => req<PromoCode[]>("/api/admin/promos"),
+  createPromo: (p: PromoCodeInput) => send<PromoCode>("/api/admin/promos", "POST", p),
+  updatePromo: (id: string, p: PromoCodeInput) => send<PromoCode>(`/api/admin/promos/${id}`, "PUT", p),
   reconcilePayment: (id: string) =>
     send<{ id: string; status: string }>(
       `/api/billing/orders/${id}/reconcile`,

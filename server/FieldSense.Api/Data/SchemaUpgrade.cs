@@ -189,6 +189,19 @@ public static class SchemaUpgrade
               CreatedAt TEXT NOT NULL, ExpiresAt TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS IX_WalletPhoneProofs_PhoneNumber_CreatedAt ON WalletPhoneProofs(PhoneNumber,CreatedAt);
             """);
+        // Promo codes for SMS and VPN checkout.
+        await AddColumn("PaymentOrders", "PromoCodeId", "TEXT NULL");
+        await AddColumn("PaymentOrders", "PromoCode", "TEXT NULL");
+        await AddColumn("PaymentOrders", "OriginalAmountMinor", "INTEGER NOT NULL DEFAULT 0");
+        await AddColumn("PaymentOrders", "DiscountMinor", "INTEGER NOT NULL DEFAULT 0");
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS PromoCodes (Id TEXT NOT NULL PRIMARY KEY, Code TEXT NOT NULL, Description TEXT NOT NULL,
+              Product TEXT NOT NULL, DiscountType TEXT NOT NULL, DiscountPercent INTEGER NOT NULL, AmountOffToman INTEGER NULL,
+              AmountOffUsdCents INTEGER NULL, MaxUses INTEGER NULL, MaxUsesPerUser INTEGER NULL, StartsAt TEXT NULL, ExpiresAt TEXT NULL,
+              IsActive INTEGER NOT NULL, CreatedAt TEXT NOT NULL, UpdatedAt TEXT NOT NULL);
+            CREATE UNIQUE INDEX IF NOT EXISTS IX_PromoCodes_Code ON PromoCodes(Code);
+            CREATE INDEX IF NOT EXISTS IX_PaymentOrders_PromoCodeId ON PaymentOrders(PromoCodeId);
+            """);
         if (addedFeatureOverrides)
             await db.Database.ExecuteSqlRawAsync("""
                 UPDATE Users SET SendOverride=(SELECT CASE WHEN s.SendEnabled<>p.SendEnabled THEN s.SendEnabled ELSE NULL END

@@ -7,8 +7,10 @@ import {
   type BillingCatalog,
   type PaymentOrder,
   type Plan,
+  type PromoQuote,
 } from "./api";
 import type { Lang } from "./i18n";
+import { PromoField, PromoPriceText, promoError } from "./Promo";
 
 const usd = (value: number, lang: Lang) =>
   new Intl.NumberFormat(lang === "fa" ? "fa-IR" : "en-US", {
@@ -44,6 +46,8 @@ function paymentLabel(status: string, lang: Lang) {
   ];
 }
 function billingError(error: unknown, lang: Lang) {
+  const promoText = promoError(error, lang);
+  if (promoText) return promoText;
   const e = error as RequestError;
   const messages: Record<string, [string, string]> = {
     payment_not_configured: [
@@ -108,6 +112,13 @@ function OrderList({ orders, lang }: { orders: PaymentOrder[]; lang: Lang }) {
                   : toman(order.amountMinor, lang)}
               </strong>
               <span className="badge">{paymentLabel(order.status, lang)}</span>
+              {order.promoCode && (
+                <small>
+                  {tr("کد تخفیف ", "Promo ")}
+                  <span dir="ltr">{order.promoCode}</span>
+                  {order.discountMinor ? " · −" + (order.currency === "USD" ? usd(order.discountMinor, lang) : toman(order.discountMinor, lang)) : ""}
+                </small>
+              )}
               {order.refundedMinor > 0 && (
                 <small>
                   {tr("بازپرداخت: ", "Refund: ")}
@@ -148,8 +159,15 @@ export function BillingPanel({
   const request = useRef<{
     planId: string;
     currency: string;
+    promo: string | null;
     key: string;
   } | null>(null);
+  const [promo, setPromo] = useState<PromoQuote | null>(null);
+  // The promo price of a plan for one currency; null when no code is applied or it doesn't cover that currency.
+  const promoLine = (planId: string, currency: "USD" | "IRT") => {
+    const q = promo?.plans.find((p) => p.planId === planId);
+    return (currency === "USD" ? q?.usd : q?.toman) ?? null;
+  };
   const changed = useRef(onMembershipChanged);
   changed.current = onMembershipChanged;
   async function load() {
@@ -271,20 +289,24 @@ export function BillingPanel({
     };
   }, []);
   async function buy(plan: Plan, currency: "USD" | "IRT") {
+    const line = promoLine(plan.id, currency);
+    const promoCode = line ? promo!.code : null;
+    const free = line?.final === 0;
     if (
       !request.current ||
       request.current.planId !== plan.id ||
-      request.current.currency !== currency
+      request.current.currency !== currency ||
+      request.current.promo !== promoCode
     )
-      request.current = { planId: plan.id, currency, key: crypto.randomUUID() };
+      request.current = { planId: plan.id, currency, promo: promoCode, key: crypto.randomUUID() };
     // Open the payment window now, while the click still counts as a user action; browsers block it after an await.
     let paymentWindow: Window | null = null;
-    if (currency === "IRT" && tomanRegion.current === false) {
+    if (currency === "IRT" && !free && tomanRegion.current === false) {
       setNotice("");
       setError(billingError({ code: "toman_requires_iran_ip" }, lang));
       return;
     }
-    if (currency === "IRT") {
+    if (currency === "IRT" && !free) {
       paymentWindow = window.open("", "_blank");
       if (paymentWindow) {
         paymentWindow.document.title = tr("در حال باز کردن ایزی‌پی…", "Opening Ezpay…");
@@ -304,8 +326,16 @@ export function BillingPanel({
         plan.id,
         currency,
         request.current.key,
+        promoCode,
       );
-      if (checkout.status.startsWith("paid_")) {
+      if (checkout.free) {
+        paymentWindow?.close();
+        request.current = null;
+        setPromo(null);
+        await load();
+        await changed.current();
+        setNotice(tr("کد تخفیف کل مبلغ را پوشش داد؛ طرح بدون پرداخت فعال شد.", "Your promo code covered the full price — the plan is active, no payment needed."));
+      } else if (checkout.status.startsWith("paid_")) {
         paymentWindow?.close();
         await load();
         await changed.current();
@@ -449,6 +479,9 @@ export function BillingPanel({
       {!catalog && (
         <p className="muted">{tr("در حال دریافت طرح‌ها…", "Loading plans…")}</p>
       )}
+      {catalog && (
+        <PromoField product="sms" lang={lang} value={promo} onChange={(q) => { setPromo(q); setError(""); }} disabled={busy} />
+      )}
       <div className="purchase-grid">
         {catalog?.plans
           .filter((p) => p.code !== "trial")
@@ -471,7 +504,7 @@ export function BillingPanel({
                 <span>USD</span>
                 <strong>
                   {plan.priceUsdCents != null && plan.priceUsdCents > 0
-                    ? usd(plan.priceUsdCents, lang)
+                    ? <PromoPriceText price={promoLine(plan.id, "USD")} original={plan.priceUsdCents} currency="USD" lang={lang} />
                     : tr("قیمت مشخص نشده", "Price not set")}
                 </strong>
               </div>
@@ -480,20 +513,22 @@ export function BillingPanel({
                 disabled={
                   busy ||
                   !plan.isPurchasable ||
-                  !catalog.stripeAvailable ||
+                  (!catalog.stripeAvailable && promoLine(plan.id, "USD")?.final !== 0) ||
                   !plan.priceUsdCents
                 }
                 onClick={() => buy(plan, "USD")}
               >
                 {busy
                   ? tr("کمی صبر کنید…", "One moment…")
-                  : tr("پرداخت دلاری با کارت", "Pay in USD by card")}
+                  : promoLine(plan.id, "USD")?.final === 0
+                    ? tr("فعال‌سازی رایگان", "Activate for free")
+                    : tr("پرداخت دلاری با کارت", "Pay in USD by card")}
               </button>
               <div className="plan-price">
                 <span>{tr("تومان", "Toman")}</span>
                 <strong>
                   {plan.priceToman != null && plan.priceToman > 0
-                    ? toman(plan.priceToman, lang)
+                    ? <PromoPriceText price={promoLine(plan.id, "IRT")} original={plan.priceToman} currency="IRT" lang={lang} />
                     : tr("قیمت مشخص نشده", "Price not set")}
                 </strong>
               </div>
@@ -502,17 +537,24 @@ export function BillingPanel({
                 disabled={
                   busy ||
                   !plan.isPurchasable ||
-                  !catalog.tomanAvailable ||
+                  (!catalog.tomanAvailable && promoLine(plan.id, "IRT")?.final !== 0) ||
                   !plan.priceToman
                 }
                 onClick={() => buy(plan, "IRT")}
               >
                 {busy
                   ? tr("کمی صبر کنید…", "One moment…")
-                  : catalog.tomanAvailable
+                  : promoLine(plan.id, "IRT")?.final === 0
+                    ? tr("فعال‌سازی رایگان", "Activate for free")
+                    : catalog.tomanAvailable
                     ? tr("پرداخت تومانی (کیف پول ایزی‌پی)", "Pay in toman (Ezpay wallet)")
                     : tr("پرداخت تومانی — به‌زودی", "Toman checkout — coming later")}
               </button>
+              {promo && promo.plans.some((p) => p.planId === plan.id) && ((!!plan.priceUsdCents && !promoLine(plan.id, "USD")) || (!!plan.priceToman && !promoLine(plan.id, "IRT"))) && (
+                <p className="hint">
+                  {tr("کد تخفیف فقط روی روش پرداختی که قیمتش خط خورده اعمال می‌شود.", "The promo code applies only to the payment option shown with a struck-through price.")}
+                </p>
+              )}
               {catalog.tomanAvailable && plan.priceToman ? (
                 <p className="hint">
                   {tr(

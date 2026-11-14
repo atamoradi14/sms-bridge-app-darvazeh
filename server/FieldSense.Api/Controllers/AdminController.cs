@@ -122,5 +122,5 @@ public class AdminController(AppDbContext db, MembershipService membership) : Co
         .OrderByDescending(p => p.CreatedAt).Take(200)
         .Join(db.Users, p => p.UserId, u => u.Id, (p, u) => new {
             p.Id, u.Email, p.PlanName, p.Provider, p.Currency, p.AmountMinor, p.RefundedMinor,
-            p.Status, p.CreatedAt, p.PaidAt, p.FulfilledAt }).ToListAsync());
+            p.Status, p.CreatedAt, p.PaidAt, p.FulfilledAt, p.PromoCode, p.DiscountMinor, p.OriginalAmountMinor }).ToListAsync());
 }
