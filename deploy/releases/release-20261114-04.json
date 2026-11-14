@@ -1,0 +1,22 @@
+{
+  "release": "release-20261114-04",
+  "verifiedAtUtc": "2026-11-14T07:40:00Z",
+  "change": "Iran VPN product backed by the Tehran 3x-ui panel",
+  "images": {
+    "api": "docker.io/atamoradi/fieldsense-api@sha256:df757274fa91e316f2019320447cfcf958cbbe389b8101492af2bf4e74e78785",
+    "web": "docker.io/atamoradi/fieldsense-web@sha256:24eecd39614b3e3146957b70022ef1b7915f68dc00965d61df0e45daadbb0d4b"
+  },
+  "preDeployBackup": ".local/backups/fieldsense-20261114T071836Z.db (sha256 1cc1a4c8b336abf2f31ad4a7e57ff72f6b3cbd94b628e76112f14942f47e8bbf)",
+  "productionDataPreserved": true,
+  "verification": [
+    "verify-vpn.py, verify-billing.py and verify-membership.py passed locally",
+    "both pods rolled out on ravand-worker-01; /health 200; /api/vpn requires auth; portal 200",
+    "VPN worker started in production with the Tehran server configured and no panel errors",
+    "live smoke (release build, disposable DB) against the Tehran panel: inbounds 1,2,3 found; trial client created; subscription returned 4 profiles with Vision flow only on REALITY TCP 8443; client revoked and confirmed removed"
+  ],
+  "remaining": [
+    "first real member request and payment in production",
+    "3x-ui limitIp needs Fail2ban on the Tehran server to be enforced",
+    "connectivity from Iranian carriers not tested"
+  ]
+}
