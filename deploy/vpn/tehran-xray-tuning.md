@@ -9,6 +9,10 @@ Panel backups taken before the changes: `/root/x-ui-before-sniff-fix-20261115.db
 * **The server has no IPv6.** Phones often send Cloudflare IPv6 addresses (Darvazeh, Google, …)
   through the tunnel. With sniffing `routeOnly: true` Xray dialled that IPv6 address and the
   connection hung until timeout, so pages loaded only after several retries.
+* **QUIC from Iran is unreliable.** Cloudflare advertises HTTP/3, so Chrome sent `api1.daryajan.com`
+  requests as QUIC (UDP 443) through the tunnel. From Tehran only 20–50% of UDP 443 probes to Cloudflare
+  (0% to Google) get an answer, while TCP has no loss, so QUIC connections stalled and the app showed
+  "connection failed". Blocking UDP 443 makes browsers use HTTPS over TCP immediately.
 * **REALITY dials its target for every connection.** `www.microsoft.com` takes ~0.5 s to complete
   a TLS handshake from Tehran, which added that delay to every new connection.
 
@@ -24,6 +28,7 @@ Panel backups taken before the changes: `/root/x-ui-before-sniff-fix-20261115.db
 
 ```json
 "dns": { "servers": ["localhost"], "queryStrategy": "UseIPv4", "disableCache": false, "tag": "dns-internal" },
+"routing": { "rules": [ api rule, { "type": "field", "network": "udp", "port": "443", "outboundTag": "blocked" }, ... ] },
 "outbounds": [ { "tag": "direct", "protocol": "freedom",
                  "settings": { "domainStrategy": "UseIPv4", "finalRules": [ ... unchanged ... ] } }, ... ]
 ```
